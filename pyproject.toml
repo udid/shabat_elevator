@@ -7,6 +7,11 @@ dependencies = []
 
 [dependency-groups]
 dev = ["playwright>=1.58,<2"]
+audio = [
+    "numpy>=2.2,<3",
+    "scipy>=1.15,<2",
+    "sounddevice>=0.5,<1",
+]
 
 [tool.uv]
 package = false
