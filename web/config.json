@@ -1,0 +1,21 @@
+{
+  "buildingId": "begin17",
+  "buildingName": "מנחם בגין 17",
+  "city": "גבעת שמואל",
+  "timezone": "Asia/Jerusalem",
+  "floors": [-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+  "anchorFloor": 7,
+  "route": [0, 0, 12, 10, 8, 6, 4, 2, -1, 0, 11, 9, 7, 5, 3, 1, -1],
+  "cycleSeconds": 570,
+  "travelSecondsPerFloor": 3,
+  "dwellSeconds": 12,
+  "latitude": 32.078,
+  "longitude": 34.847,
+  "sourceMode": "simulation",
+  "liveApiUrl": "",
+  "staleAfterSeconds": 90,
+  "arrivalGraceSeconds": 60,
+  "schedulePaddingMinutes": 60,
+  "candleLightingMinutes": 18,
+  "havdalahMinutes": null
+}

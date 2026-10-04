@@ -1,10 +1,12 @@
-﻿[project]
+[project]
 name = "shabat_elevator"
-version = "0.1.0"
-description = "Python project"
+version = "0.2.0"
+description = "Shabbat elevator dashboard for Menachem Begin 17, Givat Shmuel"
 requires-python = ">=3.13"
 dependencies = []
 
-[build-system]
-requires = ["uv_build>=0.12.10,<0.13.0"]
-build-backend = "uv_build"
+[dependency-groups]
+dev = ["playwright>=1.58,<2"]
+
+[tool.uv]
+package = false

@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101a23">
+  <meta name="description" content="מעלית השבת של מנחם בגין 17, גבעת שמואל — מסלול, זמני הגעה משוערים וזמני שבת.">
+  <title>מעלית שבת · מנחם בגין 17</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23101a23'/%3E%3Cpath d='M18 22h28v30H18zm14 0v30M22 14l5-5 5 5m4-5 5 5 5-5' fill='none' stroke='%237de2cb' stroke-width='3'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./app.js"></script>
+</head>
+<body>
+  <svg class="svg-defs" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><defs>
+    <symbol id="icon-elevator" viewBox="0 0 24 24"><path d="M4 9h16v13H4zM12 9v13M5 5l3-3 3 3m2-3 3 3 3-3"/></symbol>
+    <symbol id="icon-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="icon-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.4 1.4m11.2 11.2L19 19M5 19l1.4-1.4M17.6 6.4L19 5"/></symbol>
+    <symbol id="icon-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M7 3v4m10-4v4M3 11h18m-13 4h2m4 0h2m-8 3h2"/></symbol>
+    <symbol id="icon-candle" viewBox="0 0 24 24"><path d="M7 11h3v9H7zm7 0h3v9h-3M5 21h14M8.5 2c-3 3-2 6 0 6s3-3 0-6zm7 0c-3 3-2 6 0 6s3-3 0-6z"/></symbol>
+    <symbol id="icon-screen" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="14" rx="2"/><path d="M8 21h8m-4-4v4m-3-11 2 2 4-4"/></symbol>
+    <symbol id="icon-expand" viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></symbol>
+    <symbol id="icon-arrow" viewBox="0 0 24 24"><path d="M12 20V4m-6 6 6-6 6 6"/></symbol>
+    <symbol id="icon-pin" viewBox="0 0 24 24"><path d="M19 10c0 5-7 11-7 11S5 15 5 10a7 7 0 0 1 14 0Z"/><circle cx="12" cy="10" r="2"/></symbol>
+    <symbol id="icon-wave" viewBox="0 0 24 24"><path d="M3 12h3l3-7 5 14 3-7h4"/></symbol>
+  </defs></svg>
+
+  <div class="page-shell">
+    <header class="site-header">
+      <a class="brand" href="./" aria-label="מעלית שבת — דף הבית">
+        <span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="#icon-elevator"/></svg></span>
+        <span><strong>מעלית שבת</strong><span class="brand-address" id="building-name">מנחם בגין 17 <i>·</i> גבעת שמואל</span></span>
+      </a>
+      <div class="header-actions">
+        <span class="public-label"><span class="status-dot"></span>פתוח לכל הדיירים</span>
+        <button class="icon-button" id="fullscreen-button" type="button" aria-label="מעבר למסך מלא" title="מסך מלא"><svg class="icon" aria-hidden="true"><use href="#icon-expand"/></svg></button>
+      </div>
+    </header>
+
+    <main>
+      <section class="welcome-row" aria-label="השעה והתאריך">
+        <div><p class="eyebrow">קצת פחות לחכות, קצת יותר לדעת</p><h1>השבת שלכם, בנחת.</h1></div>
+        <div class="clock-block"><time class="wall-clock" id="wall-clock" dir="ltr">--:--<span>--</span></time><div class="calendar-line"><span id="hebrew-date">טוען תאריך…</span><span class="date-divider">·</span><span id="gregorian-date"></span></div></div>
+      </section>
+
+      <div class="mode-banner" id="mode-banner" role="status"><span class="mode-tag" id="mode-tag">הדגמה</span><span id="mode-copy">נתוני סימולציה · המעלית עדיין אינה מחוברת לחיישן</span></div>
+
+      <section class="elevator-card" aria-labelledby="elevator-heading">
+        <div class="elevator-main">
+          <div class="section-topline"><h2 id="elevator-heading"><svg class="icon" aria-hidden="true"><use href="#icon-elevator"/></svg>המעלית שלנו</h2><span class="activity-pill" id="activity-pill"><span class="status-dot"></span><span id="activity-label">בודק זמני פעילות</span></span></div>
+          <div class="arrival-layout">
+            <div class="arrival-content">
+              <div class="floor-picker"><label for="floor-select">באיזו קומה מחכים?</label><div class="select-wrap"><select id="floor-select"><option value="">בחירת קומה</option></select><span aria-hidden="true">⌄</span></div></div>
+              <p class="countdown-label" id="countdown-label">בחרו קומה כדי לראות את זמן ההגעה המשוער</p>
+              <div class="countdown" id="countdown" dir="ltr" aria-label="זמן להגעה">--<span>:</span>--</div>
+              <p class="arrival-note" id="arrival-note">התחזית מחכה לבחירת הקומה שלכם</p>
+              <button class="demo-button" id="demo-button" type="button" hidden><span aria-hidden="true">▷</span><span id="demo-button-label">הפעלת הדגמה</span></button>
+            </div>
+            <div class="elevator-visual" aria-label="מצב המעלית המשוער">
+              <div class="visual-label"><span class="live-dash"></span><span id="position-label">מיקום משוער</span></div>
+              <div class="lift-display" id="lift-display"><span class="lift-floor" id="current-floor" dir="ltr">—</span><svg class="direction-arrow icon" id="direction-arrow" aria-hidden="true"><use href="#icon-arrow"/></svg></div>
+              <div class="position-description" id="position-description">ממתין לנתונים</div>
+              <div class="lift-doors" aria-hidden="true"><span></span><span></span></div>
+              <div class="lift-base" aria-hidden="true"></div>
+            </div>
+          </div>
+          <div class="telemetry-row">
+            <div class="telemetry-item"><span class="telemetry-label"><svg class="icon" aria-hidden="true"><use href="#icon-clock"/></svg><span id="last-arrival-label">הגעה אחרונה לקומה 7</span></span><strong id="last-arrival" dir="ltr">—</strong><span class="telemetry-detail" id="since-arrival">טרם התקבל זיהוי</span></div>
+            <div class="telemetry-item"><span class="telemetry-label"><svg class="icon" aria-hidden="true"><use href="#icon-wave"/></svg>משך מחזור מלא</span><strong id="cycle-duration" dir="ltr">09:30</strong><span class="telemetry-detail" id="cycle-description">דקות · אומדן להדגמה</span></div>
+            <div class="telemetry-item"><span class="telemetry-label"><span class="source-dot" id="source-dot"></span>מקור הנתונים</span><strong class="source-name" id="source-name">סימולטור</strong><span class="telemetry-detail" id="source-detail">ללא מדידה מהמעלית</span></div>
+          </div>
+        </div>
+
+        <aside class="route-panel" aria-labelledby="route-heading">
+          <div class="route-heading"><div><p class="eyebrow">בכל סבב, כל הקומות</p><h3 id="route-heading">מסלול המעלית</h3></div><span class="route-badge">↻</span></div>
+          <div class="route-group"><span class="route-group-label">סבב זוגי</span><div class="route-stops" id="even-route" dir="ltr"></div></div>
+          <div class="route-group"><span class="route-group-label">סבב אי־זוגי</span><div class="route-stops" id="odd-route" dir="ltr"></div></div>
+          <div class="route-caption"><span class="route-key"></span><span>הקומה שבחרתם</span><span class="double-stop">×2</span><span>עצירה כפולה</span></div>
+          <p class="route-note">המסלול חוזר ברצף. הזמנים בין העצירות יכוילו בהמשך לפי מדידה בבניין.</p>
+        </aside>
+      </section>
+
+      <section class="info-grid" aria-label="מידע לשבת">
+        <article class="info-card shabbat-card"><div class="info-card-heading"><span class="small-icon"><svg class="icon" aria-hidden="true"><use href="#icon-candle"/></svg></span><h2 id="shabbat-title">השבת הקרובה</h2><span class="city-tag">גבעת שמואל</span></div><div class="shabbat-times"><div><span>כניסה</span><strong id="candle-time" dir="ltr">--:--</strong><small id="candle-date">טוען זמנים…</small></div><span class="times-rule"></span><div><span>יציאה</span><strong id="havdalah-time" dir="ltr">--:--</strong><small id="havdalah-date">לפי שעון ישראל</small></div></div><p class="card-bottom" id="schedule-note">המעלית פועלת משעה לפני הכניסה ועד שעה אחרי היציאה</p></article>
+        <article class="info-card parasha-card"><div class="info-card-heading"><span class="small-icon"><svg class="icon" aria-hidden="true"><use href="#icon-calendar"/></svg></span><h2>השבוע בלוח</h2></div><p class="parasha-name" id="parasha-name">—</p><p class="subtle" id="parasha-detail">טוען פרשת שבוע…</p><p class="card-bottom" id="holiday-label">זמני שבת וחג לפי מנהג ישראל</p></article>
+        <article class="info-card weather-card"><div class="info-card-heading"><span class="small-icon"><svg class="icon" aria-hidden="true"><use href="#icon-sun"/></svg></span><h2>בחוץ עכשיו</h2><span class="city-tag">גבעת שמואל</span></div><div class="weather-main"><strong id="weather-temperature" dir="ltr">—°</strong><svg class="weather-sun icon" aria-hidden="true"><use href="#icon-sun"/></svg></div><p class="subtle" id="weather-description">טוען מזג אוויר…</p><p class="card-bottom" id="weather-detail">מזג האוויר מתעדכן לאורך היום</p></article>
+      </section>
+
+      <section class="screen-bar" aria-label="מצב תצוגה רציפה"><div class="screen-copy"><svg class="icon" aria-hidden="true"><use href="#icon-screen"/></svg><div><strong>משאירים את המסך פתוח לשבת?</strong><p id="wake-description">אפשר לבקש מהדפדפן לשמור על המסך דולק כשהאתר גלוי.</p></div></div><button class="wake-toggle" id="wake-button" type="button" aria-pressed="false"><span class="toggle-track" aria-hidden="true"><span></span></span><span id="wake-label">השארת מסך דולק</span></button></section>
+
+      <details class="about-details"><summary>איך מחושבת התחזית?</summary><div><p>בעתיד, מיקרופון ורזברי פיי בקומה 7 יזהו את הגעת המעלית. הזמן בין שתי הגעות תקפות ישמש לחישוב המחזור. המיקום וההגעה לשאר הקומות יהיו הערכה לפי המסלול וזמני העצירה.</p><p>כרגע מוצגת סימולציה של מחזור בן 9 דקות ו־30 שניות. עצירה כפולה בקומה 0 מחושבת כחלק מהמחזור. ללא נתונים עדכניים לא מוצגת תחזית פעילה.</p><p>זמני הפעילות מתחילים 60 דקות לפני כניסת שבת או חג ומסתיימים 60 דקות לאחר צאתם. שבת וחג רצופים מחוברים לחלון פעילות אחד. זמני הכניסה מחושבים 18 דקות לפני השקיעה, והיציאה לפי צאת הכוכבים בשיטת Hebcal, כשהשמש 8.5 מעלות מתחת לאופק.</p><p class="data-attribution">נתוני לוח: <a href="https://www.hebcal.com" target="_blank" rel="noopener noreferrer">Hebcal</a> · מזג אוויר: <a href="https://open-meteo.com" target="_blank" rel="noopener noreferrer">Open-Meteo</a></p></div></details>
+    </main>
+    <footer><span>מנחם בגין 17 <i>·</i> גבעת שמואל</span><span>מעלית אחת. כל הבניין.</span><a href="https://github.com/udid/shabat_elevator" target="_blank" rel="noopener noreferrer">קוד הפרויקט <span aria-hidden="true">↗</span></a></footer>
+  </div>
+  <div class="toast" id="toast" role="status" hidden></div>
+  <noscript><p class="noscript">יש להפעיל JavaScript בדפדפן כדי לצפות במידע על המעלית.</p></noscript>
+</body>
+</html>

@@ -1,7 +1,6 @@
-﻿"""Main entry point for this project."""
+"""Main entry point for this project."""
 
-def main() -> None:
-    print("Python project is working")
+from elevator.server import main
 
 if __name__ == "__main__":
     main()
