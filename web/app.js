@@ -189,8 +189,8 @@ function render() {
   renderClock(now);
   const activity = activityAt(now);
   renderCalendar(activity);
-  const simulation = state.config.sourceMode !== 'live';
   const demo = state.manualDemo;
+  const simulation = demo || state.config.sourceMode !== 'live';
   const scheduled = activity.active === true;
   const live = simulation ? null : liveModel(now);
   let anchor = null;
@@ -213,14 +213,14 @@ function render() {
   $('mode-banner').classList.toggle('disconnected', !simulation && !live.connected);
   setText('mode-tag', simulation ? 'הדגמה' : live.connected ? 'חיישן מחובר' : 'חיישן מנותק');
   setText('mode-copy', simulation ? 'הנתונים אינם מהמעלית' : live.seen ? `עדכון חיישן ${observationTime(live.seen, now)}` : 'טרם התקבל דיווח');
-  $('demo-button').hidden = !simulation || (scheduled && !demo);
+  $('demo-button').disabled = false;
+  $('demo-button').setAttribute('aria-pressed', String(demo));
   setText('demo-button-label', demo ? 'סיום ההדגמה' : 'הפעלת הדגמה');
 
   const position = available ? estimateState(state.profile, anchor, now.getTime(), cycle) : null;
   $('position-readout').hidden = !position;
-  $('elevator-visual').hidden = !position && $('demo-button').hidden;
-  $('elevator-visual').classList.toggle('controls-only', !position);
-  $('arrival-layout').classList.toggle('without-position', !position && $('demo-button').hidden);
+  $('elevator-visual').hidden = !position;
+  $('arrival-layout').classList.toggle('without-position', !position);
   if (position) {
     setText('current-floor', position.phase === 'stopped' ? position.floor : position.nextFloor);
     setText('position-label', position.phase === 'stopped' ? 'עצירה משוערת' : 'התחנה הבאה · אומדן');
