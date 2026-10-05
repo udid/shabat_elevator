@@ -86,7 +86,7 @@ main{display:grid;grid-template-columns:minmax(0,1fr) 210px;grid-template-rows:a
 .section-topline{align-items:center;gap:12px}
 .section-topline .mode-banner{flex:1;min-width:0;flex-wrap:wrap;gap:4px 8px;padding:0;border:0;background:none;font-size:12px}
 .mode-banner.disconnected .mode-tag{color:#e5aaa4;border-color:#cf908b66}
-.dashboard-clock{flex-shrink:0}
+.dashboard-clock{flex-shrink:0;margin-inline-start:auto}
 .measurement-line{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 22px;border-top:1px solid var(--line);padding:12px 0;font-size:12px;color:var(--muted)}
 .measurement-line>span{display:inline-flex;flex-wrap:wrap;align-items:baseline;gap:4px}
 .measurement-line strong{color:var(--text);font-weight:500;font-variant-numeric:tabular-nums}

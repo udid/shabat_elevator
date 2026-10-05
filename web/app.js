@@ -209,6 +209,7 @@ function render() {
     available = live.usable && scheduled;
   }
   const scheduleKnown = activity.status === 'live';
+  $('mode-banner').hidden = simulation && !available;
   $('mode-banner').classList.toggle('live-mode', !simulation);
   $('mode-banner').classList.toggle('disconnected', !simulation && !live.connected);
   setText('mode-tag', simulation ? 'הדגמה' : live.connected ? 'חיישן מחובר' : 'חיישן מנותק');
