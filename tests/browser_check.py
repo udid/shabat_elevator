@@ -73,7 +73,7 @@ def main():
         context.close()
         print("PASS: no default floor, explicit demo, saved selection and reset")
 
-        for name, width, height in (("phone", 390, 844), ("small-phone", 320, 640), ("tablet", 768, 1024)):
+        for name, width, height in (("phone", 390, 844), ("small-phone", 320, 640), ("phone-short", 375, 667), ("tablet", 768, 1024), ("laptop", 1366, 768), ("desktop-short", 1280, 600), ("phone-landscape", 844, 390)):
             context, page = prepare(width, height, active=True)
             expect(page.locator("#floor-select")).to_have_value("")
             expect(page.locator("#activity-label")).to_have_text("בחלון פעילות שבת")
@@ -81,9 +81,29 @@ def main():
             page.locator("#floor-select").select_option("-1")
             expect(page.locator("#countdown-label")).to_contain_text("-1")
             assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), f"Horizontal overflow on {name}"
+            assert page.evaluate("document.documentElement.scrollHeight <= innerHeight"), f"Vertical overflow on {name}"
+            for selector in ("#floor-select", "#countdown", "#current-floor", "#last-arrival", "#cycle-duration", "#source-name", "#even-route", "#odd-route", "#candle-time", "#havdalah-time", "#parasha-name", "#weather-temperature", "#wake-button", "#fullscreen-button"):
+                expect(page.locator(selector)).to_be_in_viewport(ratio=1)
+            clipped = page.evaluate("""() => [...document.querySelectorAll('.elevator-card,.info-card,.route-panel')].filter(e => e.scrollHeight > e.clientHeight + 1 || e.scrollWidth > e.clientWidth + 1).map(e => e.className)""")
+            assert not clipped, f"Clipped card content on {name}: {clipped}"
+            page.locator("#about-button").click()
+            expect(page.locator("#about-dialog")).to_be_visible()
+            page.keyboard.press("Escape")
+            expect(page.locator("#about-dialog")).not_to_be_visible()
+            expect(page.locator("#about-button")).to_be_focused()
             page.screenshot(path=str(ARTIFACTS / f"{name}.png"), full_page=True)
             context.close()
-        print("PASS: scheduled simulation and no horizontal overflow at 320, 390, 768 pixels")
+            context, page = prepare(width, height, offline=True)
+            expect(page.locator("#demo-button")).to_be_visible()
+            for demo in (False, True):
+                if demo:
+                    page.locator("#demo-button").click()
+                    page.locator("#floor-select").select_option("7")
+                assert page.evaluate("document.documentElement.scrollHeight <= innerHeight && document.documentElement.scrollWidth <= innerWidth"), f"Overflow on {name}, offline, demo={demo}"
+                clipped = page.evaluate("""() => [...document.querySelectorAll('.elevator-card,.info-card,.route-panel')].filter(e => e.scrollHeight > e.clientHeight + 1 || e.scrollWidth > e.clientWidth + 1).map(e => e.className)""")
+                assert not clipped, f"Clipped offline content on {name}: {clipped}"
+            context.close()
+        print("PASS: all dashboard data visible without scrolling on phones, tablet and desktops; dialog keyboard behavior")
 
         context, page = prepare(offline=True)
         expect(page.locator("#activity-label")).to_have_text("זמני הפעילות לא זמינים")
