@@ -58,3 +58,16 @@ main{display:grid;grid-template-columns:minmax(0,1fr) 210px;grid-template-rows:a
 @media(max-width:600px){.elevator-visual .demo-button{font-size:9px;padding:3px 4px}.elevator-visual .demo-button>span:first-child{font-size:13px}.elevator-visual .demo-button>span:last-child{white-space:normal}.shabbat-card .info-card-heading{row-gap:0}}
 
 @media(orientation:landscape) and (min-width:700px) and (max-height:500px){.clock-block{line-height:1.1}.site-header{min-height:44px;padding-block:2px}.route-panel{row-gap:2px}.elevator-visual .demo-button{font-size:8px;margin:2px auto 4px;padding:1px 3px}.elevator-visual .demo-button>span:first-child{font-size:12px}.telemetry-row{padding-block:3px}.info-card{padding-block:4px}}
+
+/* A single-purpose header; time belongs to the elevator, dates to the calendar. */
+.site-header{display:flex;justify-content:space-between;min-height:52px;padding:7px 0;gap:12px}
+.brand-title{font-size:18px;font-weight:650;line-height:1.2;letter-spacing:-.4px}
+.header-actions{margin-inline-start:auto}
+.elevator-status{display:flex;align-items:center;gap:16px}
+.dashboard-clock{line-height:1;white-space:nowrap;text-align:left}
+.dashboard-clock .wall-clock{font-size:25px;line-height:1.1}
+.dashboard-clock .wall-clock span{font-size:11px;padding-left:3px}
+.parasha-card .calendar-line{display:flex;flex-direction:row;flex-wrap:wrap;gap:0 6px;margin-top:5px;font-size:11px;line-height:1.4}
+.parasha-card .date-divider{display:inline}
+@media(max-width:600px){.site-header{min-height:44px;padding:5px 0}.brand-title{font-size:15px}.elevator-status{gap:7px}.dashboard-clock .wall-clock{font-size:19px}.dashboard-clock .wall-clock span{font-size:9px}.parasha-card .calendar-line{font-size:9px;gap:0 4px;margin-top:3px}}
+@media(orientation:landscape) and (min-width:700px) and (max-height:500px){.site-header{min-height:38px;padding:3px 0}.brand-title{font-size:15px}.dashboard-clock .wall-clock{font-size:20px}.elevator-status{gap:10px}.parasha-card .calendar-line{font-size:8px;margin-top:2px}}

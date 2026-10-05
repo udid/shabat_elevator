@@ -28,10 +28,8 @@
     <header class="site-header">
       <a class="brand" href="./" aria-label="מעלית שבת — דף הבית">
         <span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="#icon-elevator"/></svg></span>
-        <span><strong>מעלית שבת</strong><span class="brand-address" id="building-name">מנחם בגין 17 <i>·</i> גבעת שמואל</span></span>
+        <h1 class="brand-title">מעלית שבת</h1>
       </a>
-      <h1 class="header-title">השבת שלכם, בנחת.</h1>
-      <div class="clock-block"><time class="wall-clock" id="wall-clock" dir="ltr">--:--<span>--</span></time><div class="calendar-line"><span id="hebrew-date">טוען תאריך…</span><span class="date-divider">·</span><span id="gregorian-date"></span></div></div>
       <div class="header-actions">
         <button class="wake-toggle" id="wake-button" type="button" aria-describedby="wake-description" aria-pressed="false"><span class="toggle-track" aria-hidden="true"><span></span></span><span id="wake-label">השארת מסך דולק</span></button>
         <p class="visually-hidden" id="wake-description">אפשר לבקש מהדפדפן לשמור על המסך דולק כשהאתר גלוי.</p>
@@ -44,7 +42,7 @@
 
       <section class="elevator-card" aria-labelledby="elevator-heading">
         <div class="elevator-main">
-          <div class="section-topline"><h2 id="elevator-heading"><svg class="icon" aria-hidden="true"><use href="#icon-elevator"/></svg>המעלית שלנו</h2><span class="activity-pill" id="activity-pill"><span class="status-dot"></span><span id="activity-label">בודק זמני פעילות</span></span></div>
+          <div class="section-topline"><h2 id="elevator-heading"><svg class="icon" aria-hidden="true"><use href="#icon-elevator"/></svg>המעלית שלנו</h2><div class="elevator-status"><span class="activity-pill" id="activity-pill"><span class="status-dot"></span><span id="activity-label">בודק זמני פעילות</span></span><div class="dashboard-clock"><time class="wall-clock" id="wall-clock" dir="ltr">--:--<span>--</span></time></div></div></div>
           <div class="arrival-layout">
             <div class="arrival-content">
               <div class="floor-picker"><label for="floor-select">באיזו קומה מחכים?</label><div class="select-wrap"><select id="floor-select"><option value="">בחירת קומה</option></select><span aria-hidden="true">⌄</span></div></div>
@@ -79,13 +77,13 @@
 
       <section class="info-grid" aria-label="מידע לשבת">
         <article class="info-card shabbat-card"><div class="info-card-heading"><span class="small-icon"><svg class="icon" aria-hidden="true"><use href="#icon-candle"/></svg></span><h2 id="shabbat-title">השבת הקרובה</h2><span class="city-tag">גבעת שמואל</span></div><div class="shabbat-times"><div><span>כניסה</span><strong id="candle-time" dir="ltr">--:--</strong><small id="candle-date">טוען זמנים…</small></div><span class="times-rule"></span><div><span>יציאה</span><strong id="havdalah-time" dir="ltr">--:--</strong><small id="havdalah-date">לפי שעון ישראל</small></div></div><p class="card-bottom" id="schedule-note">המעלית פועלת משעה לפני הכניסה ועד שעה אחרי היציאה</p></article>
-        <article class="info-card parasha-card"><div class="info-card-heading"><span class="small-icon"><svg class="icon" aria-hidden="true"><use href="#icon-calendar"/></svg></span><h2>השבוע בלוח</h2></div><p class="parasha-name" id="parasha-name">—</p><p class="subtle" id="parasha-detail">טוען פרשת שבוע…</p><p class="card-bottom" id="holiday-label">זמני שבת וחג לפי מנהג ישראל</p></article>
+        <article class="info-card parasha-card"><div class="info-card-heading"><span class="small-icon"><svg class="icon" aria-hidden="true"><use href="#icon-calendar"/></svg></span><h2>השבוע בלוח</h2></div><div class="calendar-line"><span id="hebrew-date">טוען תאריך…</span><span class="date-divider">·</span><span id="gregorian-date"></span></div><p class="parasha-name" id="parasha-name">—</p><p class="subtle" id="parasha-detail">טוען פרשת שבוע…</p><p class="card-bottom" id="holiday-label">זמני שבת וחג לפי מנהג ישראל</p></article>
         <article class="info-card weather-card"><div class="info-card-heading"><span class="small-icon"><svg class="icon" aria-hidden="true"><use href="#icon-sun"/></svg></span><h2>בחוץ עכשיו</h2><span class="city-tag">גבעת שמואל</span></div><div class="weather-main"><strong id="weather-temperature" dir="ltr">—°</strong><svg class="weather-sun icon" aria-hidden="true"><use href="#icon-sun"/></svg></div><p class="subtle" id="weather-description">טוען מזג אוויר…</p><p class="card-bottom" id="weather-detail">מזג האוויר מתעדכן לאורך היום</p></article>
       </section>
 
 
     </main>
-    <footer><button class="about-button" id="about-button" type="button" aria-haspopup="dialog">איך מחושבת התחזית?</button><span>מנחם בגין 17 <i>·</i> גבעת שמואל</span><span>מעלית אחת. כל הבניין.</span><a href="https://github.com/udid/shabat_elevator" target="_blank" rel="noopener noreferrer">קוד הפרויקט <span aria-hidden="true">↗</span></a></footer>
+    <footer><button class="about-button" id="about-button" type="button" aria-haspopup="dialog">איך מחושבת התחזית?</button><span id="building-name">מנחם בגין 17 <i>·</i> גבעת שמואל</span><span>מעלית אחת. כל הבניין.</span><a href="https://github.com/udid/shabat_elevator" target="_blank" rel="noopener noreferrer">קוד הפרויקט <span aria-hidden="true">↗</span></a></footer>
   </div>
   <dialog class="about-dialog" id="about-dialog" aria-labelledby="about-title"><form method="dialog"><button class="dialog-close" aria-label="&#1505;&#1490;&#1497;&#1512;&#1492;">&#1505;&#1490;&#1497;&#1512;&#1492;</button></form><h2 id="about-title">איך מחושבת התחזית?</h2><p>בעתיד, מיקרופון ורזברי פיי בקומה 7 יזהו את הגעת המעלית. הזמן בין שתי הגעות תקפות ישמש לחישוב המחזור. המיקום וההגעה לשאר הקומות יהיו הערכה לפי המסלול וזמני העצירה.</p><p>כרגע מוצגת סימולציה של מחזור בן 9 דקות ו־30 שניות. עצירה כפולה בקומה 0 מחושבת כחלק מהמחזור. ללא נתונים עדכניים לא מוצגת תחזית פעילה.</p><p>זמני הפעילות מתחילים 60 דקות לפני כניסת שבת או חג ומסתיימים 60 דקות לאחר צאתם. שבת וחג רצופים מחוברים לחלון פעילות אחד. זמני הכניסה מחושבים 18 דקות לפני השקיעה, והיציאה לפי צאת הכוכבים בשיטת Hebcal, כשהשמש 8.5 מעלות מתחת לאופק.</p><p class="data-attribution">נתוני לוח: <a href="https://www.hebcal.com" target="_blank" rel="noopener noreferrer">Hebcal</a> · מזג אוויר: <a href="https://open-meteo.com" target="_blank" rel="noopener noreferrer">Open-Meteo</a></p></dialog>
   <script type="module" src="./layout.js"></script>
