@@ -71,3 +71,25 @@ main{display:grid;grid-template-columns:minmax(0,1fr) 210px;grid-template-rows:a
 .parasha-card .date-divider{display:inline}
 @media(max-width:600px){.site-header{min-height:44px;padding:5px 0}.brand-title{font-size:15px}.elevator-status{gap:7px}.dashboard-clock .wall-clock{font-size:19px}.dashboard-clock .wall-clock span{font-size:9px}.parasha-card .calendar-line{font-size:9px;gap:0 4px;margin-top:3px}}
 @media(orientation:landscape) and (min-width:700px) and (max-height:500px){.site-header{min-height:38px;padding:3px 0}.brand-title{font-size:15px}.dashboard-clock .wall-clock{font-size:20px}.elevator-status{gap:10px}.parasha-card .calendar-line{font-size:8px;margin-top:2px}}
+
+/* One source status, one forecast, and one compact measurement row. */
+.section-topline{align-items:center;gap:12px}
+.section-topline .mode-banner{flex:1;min-width:0;flex-wrap:wrap;gap:4px 8px;padding:0;border:0;background:none;font-size:12px}
+.mode-banner.disconnected .mode-tag{color:#e5aaa4;border-color:#cf908b66}
+.dashboard-clock{flex-shrink:0}
+.measurement-line{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 22px;border-top:1px solid var(--line);padding:12px 0;font-size:12px;color:var(--muted)}
+.measurement-line>span{display:inline-flex;flex-wrap:wrap;align-items:baseline;gap:4px}
+.measurement-line strong{color:var(--text);font-weight:500;font-variant-numeric:tabular-nums}
+.arrival-layout.without-position{grid-template-columns:1fr}
+.forecast-message{font-size:20px;line-height:1.5;color:var(--text);margin-block:12px}
+.arrival-note[hidden]{min-height:0}
+.elevator-visual{border-radius:12px;padding-bottom:8px}
+.elevator-visual.controls-only{background:none;border:0;box-shadow:none;padding:0;overflow:visible}
+.route-heading h2{font-size:16px;font-weight:500}
+.parasha-line{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px;margin-top:8px}
+.parasha-line .parasha-name{margin:0}
+#parasha-detail{font-size:11px;color:var(--muted);white-space:nowrap}
+.card-bottom:empty{display:none}
+@media(max-width:900px){.route-heading h2{font-size:12px}.measurement-line{padding:8px 0;font-size:11px}.forecast-message{font-size:18px}}
+@media(max-width:600px){.section-topline{gap:8px}.section-topline .mode-banner{font-size:10px;gap:3px 6px}.measurement-line{padding:8px 0;font-size:10px;gap:4px 12px}.forecast-message{font-size:15px;margin-block:8px}.visual-label{font-size:9px}.parasha-line{gap:2px 5px;margin-top:5px}.parasha-line .parasha-name{font-size:16px}#parasha-detail{font-size:9px}}
+@media(orientation:landscape) and (min-width:700px) and (max-height:500px){main{grid-template-rows:minmax(0,1fr)}.section-topline .mode-banner{font-size:10px}.measurement-line{font-size:10px;padding:6px 0;gap:3px 12px}.forecast-message{font-size:16px;margin-block:6px}.parasha-line{margin-top:3px;gap:2px 5px}.parasha-line .parasha-name{font-size:16px}#parasha-detail{font-size:9px}}

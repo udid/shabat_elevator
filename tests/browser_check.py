@@ -33,7 +33,7 @@ def main():
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(executable_path=CHROME, headless=True)
 
-        def prepare(width=1440, height=1000, *, active=False, offline=False, live_state=None):
+        def prepare(width=1440, height=1000, *, active=False, offline=False, live_state=None, calendar=None):
             context = browser.new_context(viewport={"width": width, "height": height}, device_scale_factor=1)
             page = context.new_page()
             page.on("pageerror", lambda error: errors.append(str(error)))
@@ -43,7 +43,7 @@ def main():
                 page.route("https://www.hebcal.com/**", lambda route: route.abort())
                 page.route("https://api.open-meteo.com/**", lambda route: route.abort())
             else:
-                page.route("https://www.hebcal.com/**", lambda route: route.fulfill(json=CALENDAR))
+                page.route("https://www.hebcal.com/**", lambda route: route.fulfill(json=calendar if calendar is not None else CALENDAR))
                 page.route("https://api.open-meteo.com/**", lambda route: route.fulfill(json=WEATHER))
             if live_state is not None:
                 config = json.loads((ROOT / "web" / "config.json").read_text(encoding="utf-8"))
@@ -56,17 +56,21 @@ def main():
 
         context, page = prepare()
         expect(page.locator("#floor-select")).to_have_value("")
-        expect(page.locator("#activity-label")).to_have_text("מחוץ לשעות הפעילות")
-        expect(page.locator("#countdown")).to_have_text("--:--")
+        expect(page.locator("#countdown-label")).to_have_text("מחוץ לשעות הפעילות")
+        expect(page.locator("#countdown")).not_to_be_visible()
+        expect(page.locator("#position-readout")).not_to_be_visible()
+        expect(page.locator("#arrival-note")).to_contain_text("הפעילות הבאה")
         page.locator("#floor-select").select_option("4")
         page.locator("#demo-button").click()
         expect(page.locator("#countdown")).to_have_text(re.compile(r"\d{2}:\d{2}"))
-        expect(page.locator("#activity-label")).to_have_text("תצוגת הדגמה")
-        expect(page.locator("#mode-copy")).to_contain_text("אינה משקפת")
+        expect(page.locator("#mode-tag")).to_have_text("הדגמה")
+        expect(page.locator("#mode-copy")).to_have_text("הנתונים אינם מהמעלית")
+        expect(page.locator("#arrival-note")).not_to_be_visible()
+        expect(page.locator("#last-arrival-label")).to_contain_text("מדומה")
         page.screenshot(path=str(ARTIFACTS / "desktop-demo.png"), full_page=True)
         page.reload(wait_until="networkidle")
         expect(page.locator("#floor-select")).to_have_value("4")
-        expect(page.locator("#activity-label")).to_have_text("מחוץ לשעות הפעילות")
+        expect(page.locator("#countdown-label")).to_have_text("מחוץ לשעות הפעילות")
         page.locator("#floor-select").select_option("")
         page.reload(wait_until="networkidle")
         expect(page.locator("#floor-select")).to_have_value("")
@@ -76,13 +80,15 @@ def main():
         for name, width, height in (("phone", 390, 844), ("small-phone", 320, 640), ("phone-short", 375, 667), ("tablet", 768, 1024), ("laptop", 1366, 768), ("desktop-short", 1280, 600), ("phone-landscape", 844, 390)):
             context, page = prepare(width, height, active=True)
             expect(page.locator("#floor-select")).to_have_value("")
-            expect(page.locator("#activity-label")).to_have_text("בחלון פעילות שבת")
-            expect(page.locator("#countdown")).to_have_text("--:--")
+            expect(page.locator("#countdown-label")).to_have_text("בחרו קומה להצגת התחזית")
+            expect(page.locator("#countdown")).not_to_be_visible()
+            expect(page.locator("#holiday-label")).not_to_be_visible()
             page.locator("#floor-select").select_option("-1")
-            expect(page.locator("#countdown-label")).to_contain_text("-1")
+            expect(page.locator("#floor-select")).to_have_value("-1")
+            expect(page.locator("#countdown")).to_have_text(re.compile(r"\d{2}:\d{2}"))
             assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), f"Horizontal overflow on {name}"
             assert page.evaluate("document.documentElement.scrollHeight <= innerHeight"), f"Vertical overflow on {name}"
-            for selector in ("#floor-select", "#countdown", "#current-floor", "#last-arrival", "#cycle-duration", "#source-name", "#even-route", "#odd-route", "#candle-time", "#havdalah-time", "#parasha-name", "#weather-temperature", "#wake-button", "#fullscreen-button"):
+            for selector in ("#floor-select", "#countdown", "#current-floor", "#last-arrival", "#cycle-duration", "#mode-tag", "#mode-copy", "#even-route", "#odd-route", "#candle-time", "#havdalah-time", "#parasha-name", "#parasha-detail", "#hebrew-date", "#gregorian-date", "#wall-clock", "#weather-temperature", "#wake-button", "#fullscreen-button"):
                 expect(page.locator(selector)).to_be_in_viewport(ratio=1)
             clipped = page.evaluate("""() => [...document.querySelectorAll('.elevator-card,.info-card,.route-panel')].filter(e => e.scrollHeight > e.clientHeight + 1 || e.scrollWidth > e.clientWidth + 1).map(e => e.className)""")
             assert not clipped, f"Clipped card content on {name}: {clipped}"
@@ -106,7 +112,8 @@ def main():
         print("PASS: all dashboard data visible without scrolling on phones, tablet and desktops; dialog keyboard behavior")
 
         context, page = prepare(offline=True)
-        expect(page.locator("#activity-label")).to_have_text("זמני הפעילות לא זמינים")
+        expect(page.locator("#countdown-label")).to_have_text("זמני הפעילות אינם זמינים")
+        expect(page.locator("#countdown")).not_to_be_visible()
         expect(page.locator("#weather-description")).to_contain_text("אינו זמין")
         page.locator("#demo-button").click()
         page.locator("#floor-select").select_option("7")
@@ -122,21 +129,54 @@ def main():
                 "cycleSeconds": 570, "lastSeenAt": "2026-10-09T14:59:58Z", "measurementStatus": "tracking"}
         context, page = prepare(active=True, live_state=live)
         page.locator("#floor-select").select_option("6")
-        expect(page.locator("#mode-tag")).to_have_text("חיישן קומה 7")
+        expect(page.locator("#mode-tag")).to_have_text("חיישן מחובר")
+        expect(page.locator("#mode-copy")).to_contain_text("17:59:58")
+        expect(page.locator("#last-arrival")).to_have_text("17:57:00")
         expect(page.locator("#countdown")).to_have_text(re.compile(r"\d{2}:\d{2}"))
         original_anchor = page.locator("#last-arrival").inner_text()
         live["sourceConnected"] = False
         live["measurementStatus"] = "stale"
         page.clock.run_for(5500)
-        expect(page.locator("#countdown")).to_have_text("--:--")
+        expect(page.locator("#countdown")).not_to_be_visible()
+        expect(page.locator("#position-readout")).not_to_be_visible()
+        expect(page.locator("#mode-tag")).to_have_text("חיישן מנותק")
         expect(page.locator("#last-arrival")).to_have_text(original_anchor)
         live.update(sourceConnected=True, measurementStatus="tracking", lastSeenAt="2026-10-09T15:00:08Z",
                     lastArrivalAt="2026-10-09T14:40:00Z")
         page.clock.run_for(5500)
-        expect(page.locator("#countdown")).to_have_text("--:--")
+        expect(page.locator("#countdown")).not_to_be_visible()
         expect(page.locator("#countdown-label")).to_contain_text("לסנכרון")
+        live.update(lastArrivalAt="2026-10-08T14:40:00Z", lastSeenAt="2026-10-09T15:00:13Z")
+        page.clock.run_for(5500)
+        expect(page.locator("#last-arrival")).to_contain_text("8.10")
+        expect(page.locator("#mode-copy")).to_contain_text("18:00:13")
+        expect(page.locator("#countdown")).not_to_be_visible()
+        live.update(lastArrivalAt=None, cycleSeconds=None, measurementStatus="waiting", lastSeenAt="2026-10-09T15:00:19Z")
+        page.clock.run_for(5500)
+        expect(page.locator("#countdown-label")).to_have_text("ממתינים למדידת מחזור")
+        live.update(lastArrivalAt="2026-10-09T14:59:00Z", cycleSeconds=570, measurementStatus="tracking", lastSeenAt="2026-10-09T15:00:24Z")
+        page.clock.run_for(5500)
+        expect(page.locator("#countdown")).to_be_visible()
+        expect(page.locator("#position-readout")).to_be_visible()
+        expect(page.locator("#arrival-note")).not_to_be_visible()
         context.close()
-        print("PASS: disconnected and expired real observations hide ETA without inventing arrivals")
+        print("PASS: disconnection, old observations, waiting and recovery retain distinct arrival and heartbeat timestamps")
+
+        holidays = {"items": CALENDAR["items"] + [
+            {"category": "holiday", "date": "2026-10-09", "hebrew": "שמיני עצרת", "yomtov": True},
+            {"category": "holiday", "date": "2026-10-10", "hebrew": "שמחת תורה", "yomtov": True},
+        ]}
+        context, page = prepare(320, 640, active=True, calendar=holidays)
+        expect(page.locator("#holiday-label")).to_have_text("שמיני עצרת · שמחת תורה")
+        expect(page.locator("#parasha-detail")).to_contain_text("10.10")
+        expect(page.locator("#candle-time")).to_have_text("17:55")
+        expect(page.locator("#havdalah-time")).to_have_text("18:51")
+        expect(page.locator("#schedule-note")).to_contain_text("16:55")
+        expect(page.locator("#schedule-note")).to_contain_text("19:51")
+        expect(page.locator("#holiday-label")).to_be_in_viewport(ratio=1)
+        assert page.evaluate("document.documentElement.scrollHeight <= innerHeight")
+        context.close()
+        print("PASS: holidays, parasha date and the separate Shabbat/elevator activity times stay visible")
         browser.close()
     assert not errors, errors
     print("PASS: no browser JavaScript errors")

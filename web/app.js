@@ -36,6 +36,12 @@ function shortDate(value) {
   if (!date) return '';
   return new Intl.DateTimeFormat('he-IL', { timeZone: state.config.timezone, weekday: 'short', day: 'numeric', month: 'numeric' }).format(date);
 }
+function observationTime(value, now) {
+  const date = validDate(value);
+  if (!date) return '—';
+  const day = new Intl.DateTimeFormat('en-CA', { timeZone: state.config.timezone, year: 'numeric', month: '2-digit', day: '2-digit' });
+  return `${day.format(date) === day.format(now) ? '' : `${shortDate(date)} · `}${formatTime(date, true)}`;
+}
 function announce(message) {
   setText('toast', message);
   $('toast').hidden = false;
@@ -135,15 +141,16 @@ function renderCalendar(activity) {
   } else if (activity.status !== 'loading') {
     setText('candle-time', '--:--');
     setText('havdalah-time', '--:--');
-    setText('candle-date', 'זמני הלוח אינם זמינים');
-    setText('havdalah-date', 'החיבור ייבדק שוב');
-    setText('schedule-note', 'חלון הפעילות אינו ידוע כרגע · אין הנחה שהמעלית פעילה');
+    setText('candle-date', '');
+    setText('havdalah-date', '');
+    setText('schedule-note', 'זמני שבת וחג אינם זמינים');
   }
   const parasha = state.calendar?.parasha;
   setText('parasha-name', parasha?.title || (state.calendar?.status === 'unavailable' ? 'לא זמין כרגע' : '—'));
-  setText('parasha-detail', parasha?.date ? shortDate(parasha.date) : (state.calendar ? 'מידע על פרשת השבוע אינו זמין' : 'טוען פרשת שבוע…'));
+  setText('parasha-detail', parasha?.date ? shortDate(parasha.date) : '');
   const holidays = (span?.holidays || []).map((holiday) => typeof holiday === 'string' ? holiday : (holiday.hebrew || holiday.title)).filter(Boolean);
-  setText('holiday-label', holidays.length ? [...new Set(holidays)].slice(0, 2).join(' · ') : 'זמני שבת וחג לפי מנהג ישראל');
+  setText('holiday-label', [...new Set(holidays)].join(' · '));
+  $('holiday-label').hidden = holidays.length === 0;
 }
 
 function renderWeather() {
@@ -152,11 +159,11 @@ function renderWeather() {
   if (weather.status === 'unavailable' || !weather.current || (validDate(weather.expiresAt) && Date.now() > new Date(weather.expiresAt).getTime())) {
     setText('weather-temperature', '—°');
     setText('weather-description', 'מזג האוויר אינו זמין כרגע');
-    setText('weather-detail', 'החיבור ייבדק שוב באופן אוטומטי');
+    setText('weather-detail', '');
     return;
   }
   setText('weather-temperature', `${Math.round(weather.current.temperature)}°`);
-  setText('weather-description', weather.current.label || 'גבעת שמואל');
+  setText('weather-description', weather.current.label || '');
   const today = weather.today;
   const range = today && Number.isFinite(today.min) && Number.isFinite(today.max) ? `היום ${Math.round(today.min)}°–${Math.round(today.max)}° · ` : '';
   setText('weather-detail', `${range}עדכון ${formatTime(weather.fetchedAt)}`);
@@ -202,27 +209,27 @@ function render() {
     available = live.usable && scheduled;
   }
   const scheduleKnown = activity.status === 'live';
-  const pill = $('activity-pill');
-  pill.classList.toggle('active', scheduled || demo);
-  pill.classList.toggle('unknown', !scheduleKnown && !demo);
-  setText('activity-label', demo ? 'תצוגת הדגמה' : scheduled ? 'בחלון פעילות שבת' : activity.status === 'loading' ? 'בודק זמני פעילות' : !scheduleKnown ? 'זמני הפעילות לא זמינים' : 'מחוץ לשעות הפעילות');
   $('mode-banner').classList.toggle('live-mode', !simulation);
-  setText('mode-tag', simulation ? 'הדגמה' : 'חיישן קומה 7');
-  setText('mode-copy', simulation ? (demo ? 'הדגמה יזומה · אינה משקפת את תנועת המעלית בבניין' : 'נתוני סימולציה · המעלית עדיין אינה מחוברת לחיישן') : 'זיהוי בקומה 7 · המיקום וההגעה לשאר הקומות הם הערכה');
+  $('mode-banner').classList.toggle('disconnected', !simulation && !live.connected);
+  setText('mode-tag', simulation ? 'הדגמה' : live.connected ? 'חיישן מחובר' : 'חיישן מנותק');
+  setText('mode-copy', simulation ? 'הנתונים אינם מהמעלית' : live.seen ? `עדכון חיישן ${observationTime(live.seen, now)}` : 'טרם התקבל דיווח');
   $('demo-button').hidden = !simulation || (scheduled && !demo);
   setText('demo-button-label', demo ? 'סיום ההדגמה' : 'הפעלת הדגמה');
 
   const position = available ? estimateState(state.profile, anchor, now.getTime(), cycle) : null;
+  $('position-readout').hidden = !position;
+  $('elevator-visual').hidden = !position && $('demo-button').hidden;
+  $('elevator-visual').classList.toggle('controls-only', !position);
+  $('arrival-layout').classList.toggle('without-position', !position && $('demo-button').hidden);
   if (position) {
     setText('current-floor', position.phase === 'stopped' ? position.floor : position.nextFloor);
     setText('position-label', position.phase === 'stopped' ? 'עצירה משוערת' : 'התחנה הבאה · אומדן');
-    setText('position-description', position.phase === 'stopped' ? 'המעלית בעצירה לפי התחזית' : position.direction === 'up' ? 'בעלייה אל הקומה' : 'בירידה אל הקומה');
+    $('position-readout').setAttribute('aria-label', position.phase === 'stopped' ? `עצירה משוערת בקומה ${position.floor}` : `התחנה הבאה ${position.nextFloor}, ${position.direction === 'up' ? 'בעלייה' : 'בירידה'}, לפי התחזית`);
     $('direction-arrow').classList.toggle('down', position.direction === 'down');
     $('direction-arrow').classList.toggle('stopped', position.phase === 'stopped');
   } else {
     setText('current-floor', '—');
     setText('position-label', 'מיקום משוער');
-    setText('position-description', !scheduled && scheduleKnown ? 'מעלית שבת אינה פעילה' : 'אין תחזית עדכנית');
     $('direction-arrow').classList.add('stopped');
   }
   document.querySelectorAll('.stop-node').forEach((node) => {
@@ -230,48 +237,38 @@ function render() {
     node.classList.toggle('current', position?.phase === 'stopped' && Number(node.dataset.floor) === position.floor);
   });
 
+  $('countdown').hidden = !available || state.floor === null;
+  $('arrival-note').hidden = true;
+  $('countdown-label').classList.toggle('forecast-message', !available || state.floor === null);
   if (!available) {
     setCountdown('--:--', false, true);
     if (!scheduled && !demo && scheduleKnown) {
-      setText('countdown-label', 'מעלית שבת אינה פעילה כעת');
+      setText('countdown-label', 'מחוץ לשעות הפעילות');
       const next = activity.nextWindow;
-      setText('arrival-note', next ? `הפעילות הבאה: ${shortDate(next.start)} בשעה ${formatTime(next.start)}` : 'חלון הפעילות הבא יופיע לאחר עדכון הלוח');
+      setText('arrival-note', next ? `הפעילות הבאה: ${shortDate(next.start)} בשעה ${formatTime(next.start)}` : '');
+      $('arrival-note').hidden = !next;
     } else if (!scheduleKnown && !demo) {
       setText('countdown-label', activity.status === 'loading' ? 'טוען את זמני השבת והחג' : 'זמני הפעילות אינם זמינים');
-      setText('arrival-note', simulation ? 'אפשר לפתוח הדגמה ולבחור קומה' : 'התחזית תתחדש כשהמידע יחזור להיות זמין');
     } else if (!simulation) {
       const waiting = !live.anchor || !live.cycle || live.live?.measurementStatus === 'waiting';
-      setText('countdown-label', !live.connected ? 'אין חיבור עדכני לחיישן' : waiting ? 'ממתינים למדידת מחזור' : 'התחזית ממתינה לסנכרון');
-      setText('arrival-note', !live.connected ? 'זמני ההגעה יחזרו לאחר קבלת נתונים עדכניים' : waiting ? 'נדרשות שתי הגעות תקפות לקומה 7' : 'נדרש זיהוי הגעה תקף נוסף בקומה 7');
+      setText('countdown-label', !live.connected ? 'התחזית אינה זמינה' : waiting ? 'ממתינים למדידת מחזור' : 'התחזית ממתינה לסנכרון');
     }
   } else if (state.floor === null) {
     setCountdown('--:--', false, true);
-    setText('countdown-label', 'בחרו קומה כדי לראות את זמן ההגעה המשוער');
-    setText('arrival-note', 'הבחירה תישמר במכשיר לביקור הבא');
+    setText('countdown-label', 'בחרו קומה להצגת התחזית');
   } else {
     const arrival = nextArrival(state.profile, anchor, now.getTime(), state.floor, cycle);
-    setText('countdown-label', `זמן משוער עד העצירה בקומה \u2066${state.floor}\u2069`);
+    setText('countdown-label', 'זמן משוער להגעה');
     if (arrival.isHere) {
       setCountdown('בקומה שלכם', true);
-      setText('arrival-note', 'לפי התחזית · זמן העצירה עשוי להשתנות');
     } else {
       setCountdown(duration(arrival.seconds));
-      setText('arrival-note', `הגעה משוערת בשעה ${formatTime(arrival.arrivalMs)}${simulation ? ' · סימולציה' : ''}`);
     }
   }
 
-  setText('last-arrival-label', simulation ? 'הגעה בסימולציה לקומה 7' : 'זיהוי אחרון בקומה 7');
-  setText('last-arrival', anchor === null ? '—' : formatTime(anchor, true));
-  if (anchor !== null) {
-    const age = Math.max(0, (now.getTime() - anchor) / 1000);
-    setText('since-arrival', age > 86400 ? `לפני ${Math.floor(age / 86400)} ימים` : `${duration(age)} דקות מאז ההגעה`);
-  } else setText('since-arrival', simulation ? 'תוצג בזמן ההדגמה' : 'טרם התקבל זיהוי');
+  setText('last-arrival-label', simulation ? 'זיהוי מדומה בקומה 7' : 'זיהוי אחרון בקומה 7');
+  setText('last-arrival', observationTime(anchor, now));
   setText('cycle-duration', cycle ? duration(cycle) : '—');
-  setText('cycle-description', simulation ? 'דקות · אומדן להדגמה' : cycle ? 'דקות · מחזור נלמד מהזיהויים' : 'ממתין לשתי הגעות תקפות');
-  setText('source-name', simulation ? 'סימולטור' : live.connected ? 'חיישן מחובר' : 'אין חיבור');
-  setText('source-detail', simulation ? 'ללא מדידה מהמעלית' : live.seen ? `עדכון אחרון ${formatTime(live.seen, true)}` : 'ממתין לדיווח מהרזברי');
-  $('source-dot').classList.toggle('connected', !simulation && live.connected);
-  $('source-dot').classList.toggle('disconnected', !simulation && !live.connected);
 }
 
 async function refreshCalendar() {
@@ -394,7 +391,7 @@ async function init() {
     if (!Array.isArray(config.floors) || !config.floors.length || !config.timezone) throw new Error('Invalid configuration');
     state.config = config;
     state.profile = buildRoute(config);
-    setText('building-name', `${config.buildingName} · ${config.city}`);
+    setText('city-name', config.city);
     setupFloorPicker();
     setupRoute();
     setupControls();
@@ -405,10 +402,11 @@ async function init() {
     await Promise.allSettled([refreshCalendar(), refreshWeather(), pollLive()]);
   } catch (error) {
     setText('mode-tag', 'לא זמין');
-    setText('mode-copy', 'לא ניתן לטעון את האתר. נסו לרענן את הדף.');
-    setText('activity-label', 'טעינת האתר נכשלה');
-    setText('countdown-label', 'המידע אינו זמין כרגע');
-    setText('arrival-note', 'בדקו את החיבור לאינטרנט ורעננו את הדף');
+    setText('mode-copy', '');
+    setText('countdown-label', 'טעינת האתר נכשלה · נסו לרענן');
+    $('countdown').hidden = true;
+    $('arrival-note').hidden = true;
+    $('position-readout').hidden = true;
     console.error('Unable to initialize elevator display', error);
   }
 }
