@@ -24,6 +24,38 @@ WEATHER = {
               "temperature_2m_min": [20] * 8, "temperature_2m_max": [28] * 8, "weather_code": [1] * 8},
 }
 
+WAKE_LOCK_MOCK = """(mode) => {
+    const test = window.wakeTest = {requests: 0, releases: 0, locks: [], visibility: 'visible'};
+    Object.defineProperty(document, 'visibilityState', {configurable: true, get: () => test.visibility});
+    test.setVisibility = async (value) => {
+        test.visibility = value;
+        if (value === 'hidden') await Promise.all(test.locks.map(lock => lock.release()));
+        document.dispatchEvent(new Event('visibilitychange'));
+    };
+    const createLock = () => {
+        const lock = new EventTarget();
+        lock.released = false;
+        lock.release = async () => {
+            if (lock.released) return;
+            lock.released = true;
+            test.releases++;
+            lock.dispatchEvent(new Event('release'));
+        };
+        test.locks.push(lock);
+        return lock;
+    };
+    if (mode === 'insecure') Object.defineProperty(window, 'isSecureContext', {value: false});
+    Object.defineProperty(navigator, 'wakeLock', {configurable: true, value: mode === 'unsupported' ? undefined : {
+        request: async (type) => {
+            if (type !== 'screen') throw new Error('Unexpected wake-lock type');
+            test.requests++;
+            if (mode === 'denied') throw new DOMException('Denied', 'NotAllowedError');
+            if (mode === 'pending') return new Promise(resolve => {test.resolve = () => resolve(createLock());});
+            return createLock();
+        }
+    }});
+}"""
+
 
 def main():
     if hasattr(sys.stdout, "reconfigure"):
@@ -33,8 +65,9 @@ def main():
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(executable_path=CHROME, headless=True)
 
-        def prepare(width=1440, height=1000, *, active=False, offline=False, live_state=None, calendar=None):
+        def prepare(width=1440, height=1000, *, active=False, offline=False, live_state=None, calendar=None, wake_mode="granted"):
             context = browser.new_context(viewport={"width": width, "height": height}, device_scale_factor=1)
+            context.add_init_script(f"({WAKE_LOCK_MOCK})({json.dumps(wake_mode)})")
             page = context.new_page()
             page.on("pageerror", lambda error: errors.append(str(error)))
             now = datetime(2026, 10, 9, 15, 0, tzinfo=timezone.utc) if active else datetime(2026, 10, 4, 12, 0, tzinfo=timezone.utc)
@@ -101,7 +134,7 @@ def main():
             expect(page.locator("#countdown")).to_have_text(re.compile(r"\d{2}:\d{2}"))
             assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), f"Horizontal overflow on {name}"
             assert page.evaluate("document.documentElement.scrollHeight <= innerHeight"), f"Vertical overflow on {name}"
-            for selector in ("#floor-select", "#countdown", "#current-floor", "#last-arrival", "#cycle-duration", "#mode-tag", "#mode-copy", "#even-route", "#odd-route", "#candle-time", "#havdalah-time", "#parasha-name", "#parasha-detail", "#hebrew-date", "#gregorian-date", "#wall-clock", "#weather-temperature", "#wake-button", "#fullscreen-button", "#settings-button"):
+            for selector in ("#floor-select", "#countdown", "#current-floor", "#last-arrival", "#cycle-duration", "#mode-tag", "#mode-copy", "#even-route", "#odd-route", "#candle-time", "#havdalah-time", "#parasha-name", "#parasha-detail", "#hebrew-date", "#gregorian-date", "#wall-clock", "#weather-temperature", "#fullscreen-button", "#settings-button"):
                 expect(page.locator(selector)).to_be_in_viewport(ratio=1)
             clipped = page.evaluate("""() => [...document.querySelectorAll('.elevator-card,.info-card,.route-panel')].filter(e => e.scrollHeight > e.clientHeight + 1 || e.scrollWidth > e.clientWidth + 1).map(e => e.className)""")
             assert not clipped, f"Clipped card content on {name}: {clipped}"
@@ -113,8 +146,12 @@ def main():
             page.locator("#settings-button").focus()
             page.keyboard.press("Enter")
             expect(page.locator("#settings-panel")).to_be_in_viewport(ratio=1)
+            expect(page.locator("#wake-button")).to_be_in_viewport(ratio=1)
+            expect(page.locator("#wake-button")).to_have_attribute("aria-pressed", "true")
             page.keyboard.press("Tab")
             expect(page.locator("#demo-button")).to_be_focused()
+            page.keyboard.press("Tab")
+            expect(page.locator("#wake-button")).to_be_focused()
             page.keyboard.press("Escape")
             expect(page.locator("#settings-button")).to_be_focused()
             expect(page.locator("#settings-panel")).not_to_be_visible()
@@ -140,19 +177,67 @@ def main():
             context.close()
         print("PASS: all dashboard data visible without scrolling on phones, tablet and desktops; dialog keyboard behavior")
 
-        context, page = prepare(offline=True)
+        context, page = prepare(offline=True, wake_mode="denied")
         expect(page.locator("#countdown-label")).to_have_text("זמני הפעילות אינם זמינים")
         expect(page.locator("#countdown")).not_to_be_visible()
         expect(page.locator("#weather-description")).to_contain_text("אינו זמין")
         toggle_demo(page)
         page.locator("#floor-select").select_option("7")
         expect(page.locator("#countdown")).to_have_text("בקומה שלכם")
-        page.evaluate("Object.defineProperty(navigator, 'wakeLock', {value: {request: async () => {throw new Error('Denied')}}})")
+        assert page.evaluate("wakeTest.requests") == 1
+        page.locator("#settings-button").click()
+        expect(page.locator("#wake-button")).to_have_attribute("aria-pressed", "false")
         page.locator("#wake-button").click()
         expect(page.locator("#wake-button")).to_have_attribute("aria-pressed", "false")
         expect(page.locator("#toast")).to_contain_text("לא אישר")
+        assert page.evaluate("wakeTest.requests") == 2
         context.close()
         print("PASS: service failures and denied screen wake lock do not break the display")
+
+        context, page = prepare()
+        assert page.evaluate("wakeTest.requests") == 1
+        expect(page.locator("#wake-label")).to_have_text("המסך נשאר דולק")
+        expect(page.locator("#settings-panel")).not_to_be_visible()
+        page.locator("#settings-button").click()
+        page.locator("#wake-button").click()
+        expect(page.locator("#wake-button")).to_have_attribute("aria-pressed", "false")
+        assert page.evaluate("wakeTest.releases") == 1
+        page.evaluate("async () => { await wakeTest.setVisibility('hidden'); await wakeTest.setVisibility('visible'); }")
+        assert page.evaluate("wakeTest.requests") == 1
+        page.locator("#wake-button").click()
+        expect(page.locator("#wake-label")).to_have_text("המסך נשאר דולק")
+        assert page.evaluate("wakeTest.requests") == 2
+        page.evaluate("wakeTest.setVisibility('hidden')")
+        expect(page.locator("#wake-label")).to_have_text("ממתין לחזרת האתר למסך")
+        expect(page.locator("#wake-button")).to_have_attribute("aria-pressed", "true")
+        page.evaluate("wakeTest.setVisibility('visible')")
+        expect(page.locator("#wake-label")).to_have_text("המסך נשאר דולק")
+        assert page.evaluate("wakeTest.requests") == 3
+        page.evaluate("wakeTest.locks.at(-1).release()")
+        expect(page.locator("#wake-button")).to_have_attribute("aria-pressed", "false")
+        expect(page.locator("#toast")).to_contain_text("שחרר")
+        assert page.evaluate("wakeTest.requests") == 3
+        context.close()
+
+        for wake_mode in ("unsupported", "insecure"):
+            context, page = prepare(wake_mode=wake_mode)
+            page.locator("#settings-button").click()
+            expect(page.locator("#wake-button")).to_be_disabled()
+            expect(page.locator("#wake-button")).to_have_attribute("aria-pressed", "false")
+            expect(page.locator("#wake-label")).to_contain_text("אינה נתמכת")
+            assert page.evaluate("wakeTest.requests") == 0
+            expect(page.locator("#toast")).not_to_be_visible()
+            context.close()
+
+        context, page = prepare(wake_mode="pending")
+        expect(page.locator("#wake-label")).to_have_text("מבקש להשאיר מסך דולק…")
+        page.locator("#settings-button").click()
+        page.locator("#wake-button").click()
+        page.evaluate("wakeTest.resolve()")
+        expect(page.locator("#wake-button")).to_have_attribute("aria-pressed", "false")
+        assert page.evaluate("wakeTest.releases") == 1
+        context.close()
+        print("PASS: wake lock defaults on, honors manual off, renews on return and handles denial, release, unsupported browsers and cancellation")
 
         live = {"mode": "live", "sourceConnected": True, "lastArrivalAt": "2026-10-09T14:57:00Z",
                 "cycleSeconds": 570, "lastSeenAt": "2026-10-09T14:59:58Z", "measurementStatus": "tracking"}

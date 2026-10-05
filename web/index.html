@@ -32,8 +32,6 @@
         <h1 class="brand-title">מעלית שבת</h1>
       </a>
       <div class="header-actions">
-        <button class="wake-toggle" id="wake-button" type="button" aria-describedby="wake-description" aria-pressed="false"><span class="toggle-track" aria-hidden="true"><span></span></span><span id="wake-label">השארת מסך דולק</span></button>
-        <p class="visually-hidden" id="wake-description">אפשר לבקש מהדפדפן לשמור על המסך דולק כשהאתר גלוי.</p>
         <button class="icon-button" id="fullscreen-button" type="button" aria-label="מעבר למסך מלא" title="מסך מלא"><svg class="icon" aria-hidden="true"><use href="#icon-expand"/></svg></button>
         <div class="settings">
           <button class="icon-button settings-button" id="settings-button" type="button" aria-label="הגדרות" aria-expanded="false" aria-controls="settings-panel" title="הגדרות"><svg class="icon" aria-hidden="true"><use href="#icon-settings"/></svg><span>הגדרות</span></button>
@@ -41,6 +39,8 @@
             <h2 id="settings-title">הגדרות</h2>
             <button class="demo-button" id="demo-button" type="button" aria-pressed="false" disabled><span aria-hidden="true">▷</span><span id="demo-button-label">הפעלת הדגמה</span></button>
             <p>תצוגת ניסיון של תנועת המעלית.</p>
+            <button class="wake-toggle" id="wake-button" type="button" aria-describedby="wake-description" aria-pressed="false" disabled><span class="toggle-track" aria-hidden="true"><span></span></span><span id="wake-label">השארת מסך דולק</span></button>
+            <p id="wake-description">מופעל אוטומטית כשהדפדפן תומך בכך והאתר גלוי.</p>
           </section>
         </div>
       </div>

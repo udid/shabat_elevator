@@ -80,6 +80,7 @@ main{display:grid;grid-template-columns:minmax(0,1fr) 210px;grid-template-rows:a
 .settings-panel h2{font-size:15px;font-weight:600}
 .settings-panel .demo-button{width:100%;justify-content:center;margin:12px 0 0;padding:9px 12px;min-height:40px;background:#9debd414;font-size:13px}
 .settings-panel .demo-button[aria-pressed=true]{background:#9debd426;border-color:var(--mint)}
+.settings-panel .wake-toggle{display:flex;justify-content:space-between;width:100%;height:auto;min-height:40px;margin-top:14px;padding:12px 0 0;gap:10px;border:0;border-top:1px solid var(--line);border-radius:0;font-size:12px;white-space:normal;text-align:start}
 .settings-panel p{font-size:11px;color:var(--muted);margin-top:8px}
 @media(max-width:600px){.settings-button{width:32px;padding:0;justify-content:center}.settings-button>span{display:none}}
 .section-topline{align-items:center;gap:12px}

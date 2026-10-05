@@ -5,7 +5,7 @@ const $ = (id) => document.getElementById(id);
 const state = {
   config: null, profile: null, floor: null, calendar: null, weather: null,
   live: null, liveReachable: false, polling: false, manualDemo: false,
-  demoAnchor: null, wakeRequested: false, wakeLock: null, wakePending: false,
+  demoAnchor: null, wakeRequested: true, wakeLock: null, wakePending: false,
   toastTimer: null, lastCalendarFetch: 0, lastWeatherFetch: 0, calendarPending: false,
   weatherPending: false,
 };
@@ -305,22 +305,27 @@ async function pollLive() {
   finally { clearTimeout(timeout); state.polling = false; render(); }
 }
 
+function supportsWakeLock() {
+  return window.isSecureContext && typeof navigator.wakeLock?.request === 'function';
+}
 function renderWakeState() {
-  const supported = 'wakeLock' in navigator && window.isSecureContext;
+  const supported = supportsWakeLock();
   $('wake-button').disabled = !supported;
-  $('wake-button').setAttribute('aria-pressed', String(state.wakeRequested));
-  setText('wake-label', !supported ? 'לא נתמך בדפדפן זה' : state.wakeLock ? 'המסך נשאר דולק' : state.wakeRequested ? 'ממתין לחזרת האתר למסך' : 'השארת מסך דולק');
+  $('wake-button').setAttribute('aria-pressed', String(supported && state.wakeRequested));
+  setText('wake-label', !supported ? 'השארת מסך דולק אינה נתמכת' : state.wakeLock ? 'המסך נשאר דולק' : state.wakeRequested ? state.wakePending ? 'מבקש להשאיר מסך דולק…' : 'ממתין לחזרת האתר למסך' : 'השארת מסך דולק');
   setText('wake-description', !supported ? 'אפשר לשנות את זמן כיבוי המסך בהגדרות המכשיר.' : state.wakeLock ? 'נעילת המסך פעילה. השאירו את האתר גלוי ואת המכשיר מחובר לחשמל.' : 'אפשר לבקש מהדפדפן לשמור על המסך דולק כשהאתר גלוי.');
 }
 async function acquireWakeLock() {
-  if (!state.wakeRequested || state.wakeLock || state.wakePending || document.visibilityState !== 'visible') return;
+  if (!supportsWakeLock() || !state.wakeRequested || state.wakeLock || state.wakePending || document.visibilityState !== 'visible') return;
   state.wakePending = true;
+  renderWakeState();
   try {
     const lock = await navigator.wakeLock.request('screen');
     if (!state.wakeRequested) { await lock.release(); return; }
     state.wakeLock = lock;
     lock.addEventListener('release', () => {
-      if (state.wakeLock === lock) state.wakeLock = null;
+      if (state.wakeLock !== lock) return;
+      state.wakeLock = null;
       renderWakeState();
       // A system release while visible can reflect low power or a platform
       // policy. Ask again only after the next visibility change/user action.
@@ -346,8 +351,10 @@ function setupControls() {
     state.wakeRequested = !state.wakeRequested;
     if (state.wakeRequested) await acquireWakeLock();
     else if (state.wakeLock) {
-      try { await state.wakeLock.release(); } catch { /* Already released. */ }
+      const lock = state.wakeLock;
       state.wakeLock = null;
+      renderWakeState();
+      try { await lock.release(); } catch { /* Already released. */ }
     }
     renderWakeState();
   });
@@ -373,6 +380,7 @@ function setupControls() {
   });
   window.addEventListener('online', () => { refreshCalendar(); refreshWeather(); pollLive(); });
   renderWakeState();
+  acquireWakeLock();
 }
 
 function refreshServicesIfNeeded() {
