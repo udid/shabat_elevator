@@ -37,10 +37,18 @@
           <button class="icon-button settings-button" id="settings-button" type="button" aria-label="הגדרות" aria-expanded="false" aria-controls="settings-panel" title="הגדרות"><svg class="icon" aria-hidden="true"><use href="#icon-settings"/></svg><span>הגדרות</span></button>
           <section class="settings-panel" id="settings-panel" aria-labelledby="settings-title" hidden>
             <h2 id="settings-title">הגדרות</h2>
+            <div class="settings-controls">
             <button class="demo-button" id="demo-button" type="button" aria-pressed="false" disabled><span aria-hidden="true">▷</span><span id="demo-button-label">הפעלת הדגמה</span></button>
             <p>תצוגת ניסיון של תנועת המעלית.</p>
             <button class="wake-toggle" id="wake-button" type="button" aria-describedby="wake-description" aria-pressed="false" disabled><span class="toggle-track" aria-hidden="true"><span></span></span><span id="wake-label">השארת מסך דולק</span></button>
             <p id="wake-description">מופעל אוטומטית כשהדפדפן תומך בכך והאתר גלוי.</p>
+            </div>
+            <section class="route-panel" aria-labelledby="route-heading">
+              <div class="route-heading"><h3 id="route-heading">מסלול המעלית</h3></div>
+              <div class="route-group"><span class="route-group-label">סבב זוגי</span><div class="route-stops" id="even-route" dir="ltr"></div></div>
+              <div class="route-group"><span class="route-group-label">סבב אי־זוגי</span><div class="route-stops" id="odd-route" dir="ltr"></div></div>
+              <div class="route-caption"><span class="route-key"></span><span>הקומה שבחרתם</span><span class="double-stop">×2</span><span>עצירה כפולה</span></div>
+            </section>
           </section>
         </div>
       </div>
@@ -70,12 +78,6 @@
           </div>
         </div>
 
-        <aside class="route-panel" aria-labelledby="route-heading">
-          <div class="route-heading"><h2 id="route-heading">מסלול המעלית</h2></div>
-          <div class="route-group"><span class="route-group-label">סבב זוגי</span><div class="route-stops" id="even-route" dir="ltr"></div></div>
-          <div class="route-group"><span class="route-group-label">סבב אי־זוגי</span><div class="route-stops" id="odd-route" dir="ltr"></div></div>
-          <div class="route-caption"><span class="route-key"></span><span>הקומה שבחרתם</span><span class="double-stop">×2</span><span>עצירה כפולה</span></div>
-        </aside>
       </section>
 
       <section class="info-grid" aria-label="מידע לשבת">

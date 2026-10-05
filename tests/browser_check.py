@@ -134,7 +134,7 @@ def main():
             expect(page.locator("#countdown")).to_have_text(re.compile(r"\d{2}:\d{2}"))
             assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), f"Horizontal overflow on {name}"
             assert page.evaluate("document.documentElement.scrollHeight <= innerHeight"), f"Vertical overflow on {name}"
-            for selector in ("#floor-select", "#countdown", "#current-floor", "#last-arrival", "#cycle-duration", "#mode-tag", "#mode-copy", "#even-route", "#odd-route", "#candle-time", "#havdalah-time", "#parasha-name", "#parasha-detail", "#hebrew-date", "#gregorian-date", "#wall-clock", "#weather-temperature", "#fullscreen-button", "#settings-button"):
+            for selector in ("#floor-select", "#countdown", "#current-floor", "#last-arrival", "#cycle-duration", "#mode-tag", "#mode-copy", "#candle-time", "#havdalah-time", "#parasha-name", "#parasha-detail", "#hebrew-date", "#gregorian-date", "#wall-clock", "#weather-temperature", "#fullscreen-button", "#settings-button"):
                 expect(page.locator(selector)).to_be_in_viewport(ratio=1)
             clipped = page.evaluate("""() => [...document.querySelectorAll('.elevator-card,.info-card,.route-panel')].filter(e => e.scrollHeight > e.clientHeight + 1 || e.scrollWidth > e.clientWidth + 1).map(e => e.className)""")
             assert not clipped, f"Clipped card content on {name}: {clipped}"
@@ -148,6 +148,15 @@ def main():
             expect(page.locator("#settings-panel")).to_be_in_viewport(ratio=1)
             expect(page.locator("#wake-button")).to_be_in_viewport(ratio=1)
             expect(page.locator("#wake-button")).to_have_attribute("aria-pressed", "true")
+            for selector in ("#route-heading", "#even-route", "#odd-route", ".route-caption"):
+                expect(page.locator(selector)).to_be_in_viewport(ratio=1)
+            assert page.locator("#even-route .stop-node").evaluate_all("nodes => nodes.map(node => Number(node.dataset.floor))") == [0, 12, 10, 8, 6, 4, 2, -1]
+            assert page.locator("#odd-route .stop-node").evaluate_all("nodes => nodes.map(node => Number(node.dataset.floor))") == [0, 11, 9, 7, 5, 3, 1, -1]
+            expect(page.locator('.route-panel .stop-node.selected')).to_have_count(2)
+            expect(page.locator('#even-route .stop-node.double')).to_have_attribute('data-floor', '0')
+            expect(page.locator('#even-route .stop-node.double small')).to_have_text('×2')
+            assert page.locator('#settings-panel').evaluate('e => e.scrollHeight <= e.clientHeight + 1 && e.scrollWidth <= e.clientWidth + 1'), f"Settings overflow on {name}"
+            page.screenshot(path=str(ARTIFACTS / f"settings-route-{name}.png"), full_page=True)
             page.keyboard.press("Tab")
             expect(page.locator("#demo-button")).to_be_focused()
             page.keyboard.press("Tab")
@@ -156,7 +165,7 @@ def main():
             expect(page.locator("#settings-button")).to_be_focused()
             expect(page.locator("#settings-panel")).not_to_be_visible()
             page.locator("#settings-button").click()
-            page.locator("#weather-temperature").click()
+            page.locator(".site-header").click(position={"x": 1, "y": 1})
             expect(page.locator("#settings-panel")).not_to_be_visible()
             expect(page.locator("#settings-button")).to_have_attribute("aria-expanded", "false")
             toggle_demo(page)

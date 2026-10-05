@@ -131,3 +131,22 @@ main{display:grid;grid-template-columns:minmax(0,1fr) 210px;grid-template-rows:a
 .shabbat-content{grid-template-columns:minmax(0,1fr);gap:8px;margin-top:5px}
 .shabbat-card #schedule-note{padding-top:5px}
 }
+
+/* The route remains available inside settings, leaving the forecast full width. */
+.elevator-card{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr)}
+.settings-panel{width:320px;max-height:calc(100dvh - 80px);overflow:auto}
+.settings-panel .route-panel{display:flex;flex-direction:column;justify-content:flex-start;gap:9px;margin-top:14px;padding:12px 0 0;border:0;border-top:1px solid var(--line);background:none}
+.settings-panel .route-heading{display:block;margin:0}
+.settings-panel .route-heading h3{margin:0;font-size:13px;font-weight:600}
+.settings-panel .route-group{margin:0}
+.settings-panel .route-group-label{margin-bottom:4px;font-size:10px}
+.settings-panel .route-stops{justify-content:flex-start;gap:4px}
+.settings-panel .stop-node{width:24px;height:26px;font-size:11px}
+.settings-panel .stop-node.double{width:31px}
+.settings-panel .route-caption{margin:0;gap:5px;font-size:9px;line-height:1.4}
+@media(orientation:landscape) and (min-width:700px) and (max-height:500px){
+.settings-panel{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:8px 16px;width:560px}
+.settings-panel>h2{grid-column:1 / 3}
+.settings-panel .demo-button{margin-top:0}
+.settings-panel .route-panel{margin:0;padding:0 14px 0 0;border-top:0;border-inline-start:1px solid var(--line)}
+}
