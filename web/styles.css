@@ -89,8 +89,6 @@ main { display: grid; grid-template-columns: minmax(0, 1.85fr) minmax(280px, 1fr
 .direction-arrow.stopped { visibility: hidden; }
 .measurement-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 5px 20px; border-top: 1px solid var(--line); padding: 14px 0; font-size: 12px; color: var(--muted); }
 .measurement-line > span { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 4px; }
-.measurement-line .cycle-and-update { gap: 4px 16px; }
-.measurement-item { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 4px; }
 .measurement-line strong { color: var(--text); font-weight: 500; font-variant-numeric: tabular-nums; }
 
 /* Calendar and weather use a quiet, unframed column. */
@@ -195,6 +193,9 @@ footer a:hover, .about-button:hover { color: var(--accent); }
   .lift-floor { font-size: 28px; }
   .visual-label { font-size: 12px; }
   .measurement-line { font-size: 11px; padding: 9px 0; gap: 4px 14px; }
+  .measurement-line:has(#last-update-field:not([hidden])) { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); }
+  .measurement-line:has(#last-update-field:not([hidden])) > span:nth-child(-n+2),
+  .measurement-line:has(#last-update-field:not([hidden])) > span:nth-child(-n+2) > strong { display: block; }
   .info-grid { padding: 0 2px; gap: 12px; flex-shrink: 0; }
   .info-card h2 { font-size: 13px; }
   .shabbat-content { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 12px; align-items: center; margin-top: 10px; }
@@ -227,7 +228,7 @@ footer a:hover, .about-button:hover { color: var(--accent); }
   .forecast-message { font-size: 21px; }
   .elevator-visual { padding: 7px 0; }
   .lift-floor { font-size: 24px; }
-  .measurement-line { padding: 7px 0; gap: 2px 12px; }
+  .measurement-line { padding: 3px 0; gap: 2px 12px; }
   .shabbat-content { margin-top: 6px; gap: 8px; }
   .parasha-name { font-size: 20px; }
   .shabbat-times strong { font-size: 25px; }

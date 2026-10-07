@@ -267,10 +267,10 @@ def main():
         expect(page.locator("#last-update")).to_have_text("17:59:58")
         expect(page.locator("#last-update-field")).to_be_in_viewport(ratio=1)
         expect(page.locator("#cycle-duration")).to_be_in_viewport(ratio=1)
-        assert page.locator("#last-update-field").evaluate("e => e.previousElementSibling.contains(document.getElementById('cycle-duration')) && e.parentElement.classList.contains('cycle-and-update')")
         update_box = page.locator("#last-update").bounding_box()
-        cycle_box = page.locator("#cycle-duration").bounding_box()
-        assert abs(update_box["y"] - cycle_box["y"]) <= 1, "Cycle and last update should share a row on small phone"
+        arrival_box = page.locator("#last-arrival").bounding_box()
+        assert abs(update_box["y"] - arrival_box["y"]) <= 1, "Last update and last departure should share a row on small phone"
+        assert update_box["x"] >= arrival_box["x"] + arrival_box["width"], "Last update should be to the right of last departure on small phone"
         assert page.evaluate("document.documentElement.scrollHeight <= innerHeight && document.documentElement.scrollWidth <= innerWidth"), "Live measurements overflow on small phone"
         expect(page.locator("#last-arrival")).to_have_text("17:57:00")
         expect(page.locator("#countdown")).to_have_text(re.compile(r"\d{2}:\d{2}"))
