@@ -558,6 +558,3 @@ GitHub Actions כמקור הפרסום.
 - [רשומת גבעת שמואל בשירות המיקום](https://geocoding-api.open-meteo.com/v1/get?id=294981)
 - [Open-Meteo](https://open-meteo.com/en/docs)
 - [Screen Wake Lock](https://developer.mozilla.org/en-US/docs/Web/API/Screen_Wake_Lock_API)
-
-התנהגות אתר הייחוס נבדקה לצורך האפיון. המימוש כאן עצמאי, ואינו מתחבר לשרתי
-הבניין המקורי או משתמש בפרטי הגישה שלו.
