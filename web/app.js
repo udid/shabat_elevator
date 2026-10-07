@@ -223,13 +223,13 @@ function render() {
     available = live.usable && scheduled;
   }
   const scheduleKnown = activity.status === 'live';
-  $('mode-banner').hidden = simulation && !available;
+  $('mode-banner').hidden = simulation ? !available : !live.monitorOnly;
   $('mode-banner').classList.toggle('live-mode', !simulation);
   $('mode-banner').classList.toggle('disconnected', !simulation && !live.connected);
-  setText('mode-tag', simulation ? 'הדגמה' : live.monitorOnly ? 'מצב בדיקה' : live.connected ? 'חיישן מחובר' : 'חיישן מנותק');
+  setText('mode-tag', simulation ? 'הדגמה' : live.monitorOnly ? 'מצב בדיקה' : '');
   setText('mode-copy', simulation ? 'הנתונים אינם מהמעלית' : live.monitorOnly
     ? `טרם הופעל זיהוי בקומה 7${live.connected ? '' : ' · אין חיבור לחיישן'}`
-    : live.seen ? `עדכון חיישן ${observationTime(live.seen, now)}` : 'טרם התקבל דיווח');
+    : '');
   $('demo-button').disabled = false;
   $('demo-button').setAttribute('aria-pressed', String(demo));
   setText('demo-button-label', demo ? 'סיום ההדגמה' : 'הפעלת הדגמה');
@@ -289,6 +289,8 @@ function render() {
   setText('last-arrival', observationTime(anchor, now));
   setText('cycle-label', simulation ? 'מחזור הדגמה' : live.cycleSource === 'default' ? 'מחזור ברירת מחדל' : live.cycleSource === 'measured' ? 'מחזור שנמדד' : 'מחזור');
   setText('cycle-duration', cycle ? duration(cycle) : '—');
+  $('last-update-field').hidden = simulation;
+  setText('last-update', observationTime(live?.seen, now));
 }
 
 async function refreshCalendar() {
