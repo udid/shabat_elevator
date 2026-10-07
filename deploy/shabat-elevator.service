@@ -1,0 +1,24 @@
+[Unit]
+Description=Shabbat elevator microphone detector and read-only public API
+After=network.target
+
+[Service]
+Type=simple
+User=admin
+WorkingDirectory=/home/admin/shabat_elevator
+ExecStart=/home/admin/shabat_elevator/.venv/bin/python /home/admin/shabat_elevator/run_metrics_server.py --live --host 127.0.0.1 --port 8000 --public-port 8001 --detector-config /home/admin/shabat_elevator/data/server-config.json --audio-device "USB PnP Sound Device"
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=PYTHONUNBUFFERED=1
+UMask=0077
+Restart=on-failure
+RestartSec=5
+KillSignal=SIGINT
+TimeoutStopSec=15
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/admin/shabat_elevator/data
+
+[Install]
+WantedBy=multi-user.target

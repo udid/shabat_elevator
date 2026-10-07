@@ -1,4 +1,4 @@
-/** Pure timing model. Phase zero is arrival at the Raspberry Pi's anchor floor. */
+/** Pure timing model. Profiles start at arrival; live anchors may record departure. */
 export const DEFAULT_ROUTE = Object.freeze([0, 0, 12, 10, 8, 6, 4, 2, -1, 0, 11, 9, 7, 5, 3, 1, -1]);
 
 function positive(value, name) {
@@ -12,7 +12,8 @@ function finite(value, name) {
 }
 
 function modulo(value, divisor) {
-  return ((value % divisor) + divisor) % divisor;
+  const remainder = value % divisor;
+  return remainder < 0 ? remainder + divisor : remainder;
 }
 
 /**
@@ -68,7 +69,7 @@ export function buildRoute(config = {}) {
   return { cycleSeconds, anchorFloor, rawRoute: [...route], stops, segments };
 }
 
-function timing(profile, anchorMs, nowMs, cycleSeconds) {
+function timing(profile, anchorMs, nowMs, cycleSeconds, anchorKind) {
   finite(anchorMs, 'anchorMs');
   finite(nowMs, 'nowMs');
   positive(profile?.cycleSeconds, 'profile.cycleSeconds');
@@ -77,13 +78,15 @@ function timing(profile, anchorMs, nowMs, cycleSeconds) {
   const cycleIndex = Math.floor(secondsSinceAnchor / actualCycle);
   const elapsedCycleSeconds = modulo(secondsSinceAnchor, actualCycle);
   const scale = actualCycle / profile.cycleSeconds;
-  const profilePhase = elapsedCycleSeconds / scale;
+  if (anchorKind !== 'arrival' && anchorKind !== 'departure') throw new RangeError('anchorKind must be arrival or departure');
+  const anchorOffset = anchorKind === 'departure' ? profile.stops[0].departureSeconds : 0;
+  const profilePhase = modulo(elapsedCycleSeconds / scale + anchorOffset, profile.cycleSeconds);
   return { actualCycle, secondsSinceAnchor, cycleIndex, elapsedCycleSeconds, scale, profilePhase };
 }
 
 /** Numeric floor means a predicted dwell. In transit, floor is deliberately null. */
-export function estimateState(profile, anchorMs, nowMs, cycleSeconds) {
-  const time = timing(profile, anchorMs, nowMs, cycleSeconds);
+export function estimateState(profile, anchorMs, nowMs, cycleSeconds, anchorKind = 'arrival') {
+  const time = timing(profile, anchorMs, nowMs, cycleSeconds, anchorKind);
   const segment = profile.segments.find(item => time.profilePhase >= item.startSeconds && time.profilePhase < item.endSeconds)
     ?? profile.segments[0];
   const segmentDuration = segment.endSeconds - segment.startSeconds;
@@ -104,18 +107,50 @@ export function estimateState(profile, anchorMs, nowMs, cycleSeconds) {
 }
 
 /** Finds the nearest visit, including the current dwell, for repeated route stops. */
-export function nextArrival(profile, anchorMs, nowMs, targetFloor, cycleSeconds) {
-  const time = timing(profile, anchorMs, nowMs, cycleSeconds);
+export function nextArrival(profile, anchorMs, nowMs, targetFloor, cycleSeconds, anchorKind = 'arrival') {
+  const time = timing(profile, anchorMs, nowMs, cycleSeconds, anchorKind);
   const visits = profile.stops.filter(stop => stop.floor === targetFloor);
   if (!visits.length) throw new RangeError('targetFloor must be a stop on the route');
   const current = visits.find(stop => time.profilePhase >= stop.arrivalSeconds && time.profilePhase < stop.departureSeconds);
   if (current) {
     return {
       seconds: 0,
-      arrivalMs: anchorMs + (time.cycleIndex * time.actualCycle + current.arrivalSeconds * time.scale) * 1000,
+      arrivalMs: nowMs - (time.profilePhase - current.arrivalSeconds) * time.scale * 1000,
       isHere: true,
     };
   }
-  const seconds = Math.min(...visits.map(stop => modulo(stop.arrivalSeconds * time.scale - time.elapsedCycleSeconds, time.actualCycle)));
+  const seconds = Math.min(...visits.map(stop => modulo((stop.arrivalSeconds - time.profilePhase) * time.scale, time.actualCycle)));
   return { seconds, arrivalMs: nowMs + seconds * 1000, isHere: false };
+}
+
+function timestamp(value) {
+  // Network timestamps must include their timezone; never interpret an empty or
+  // numeric value as a local date or the Unix epoch.
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T.+(?:Z|[+-]\d{2}:\d{2})$/.test(value)) return null;
+  const result = Date.parse(value);
+  return Number.isFinite(result) ? result : null;
+}
+
+/** Validate a sensor snapshot without advancing or inventing its observation. */
+export function liveTiming(live, nowMs, { reachable = false, staleAfterSeconds = 90 } = {}) {
+  finite(nowMs, 'nowMs');
+  positive(staleAfterSeconds, 'staleAfterSeconds');
+  // A legacy arrival snapshot is supported only when its event kind is absent.
+  // A departure snapshot must never fall back to its old lastArrivalAt field.
+  const anchorKind = live?.anchorKind === undefined ? 'arrival' : live.anchorKind;
+  const kindValid = anchorKind === 'departure' || anchorKind === 'arrival';
+  const observed = timestamp(anchorKind === 'departure' ? live?.lastDepartureAt : live?.lastArrivalAt);
+  const anchor = kindValid && observed !== null && observed <= nowMs ? observed : null;
+  const seen = timestamp(live?.lastSeenAt);
+  const cycleSource = live?.cycleSource === 'default' || live?.cycleSource === 'measured' ? live.cycleSource : null;
+  const legacyArrival = live?.anchorKind === undefined && anchorKind === 'arrival';
+  const cycleValid = typeof live?.cycleSeconds === 'number' && Number.isFinite(live.cycleSeconds)
+    && live.cycleSeconds > 300 && live.cycleSeconds < 1800 && (cycleSource !== null || legacyArrival);
+  const cycle = cycleValid ? live.cycleSeconds : null;
+  const fresh = seen !== null && nowMs - seen <= staleAfterSeconds * 1000 && seen - nowMs <= 5000;
+  const connected = reachable === true && live?.mode === 'live' && live?.sourceConnected === true && fresh;
+  const withinCycle = anchor !== null && cycle !== null && nowMs - anchor < cycle * 1000;
+  const monitorOnly = live?.monitorOnly === true;
+  const usable = !monitorOnly && connected && withinCycle && seen >= anchor && live?.measurementStatus === 'tracking';
+  return { usable, anchor, anchorKind: kindValid ? anchorKind : null, cycle, cycleSource, connected, seen, monitorOnly, live };
 }

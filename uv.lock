@@ -306,6 +306,10 @@ audio = [
     { name = "scipy" },
     { name = "sounddevice" },
 ]
+detector = [
+    { name = "numpy" },
+    { name = "sounddevice" },
+]
 dev = [
     { name = "playwright" },
 ]
@@ -316,6 +320,10 @@ dev = [
 audio = [
     { name = "numpy", specifier = ">=2.2,<3" },
     { name = "scipy", specifier = ">=1.15,<2" },
+    { name = "sounddevice", specifier = ">=0.5,<1" },
+]
+detector = [
+    { name = "numpy", specifier = ">=1.24,<3" },
     { name = "sounddevice", specifier = ">=0.5,<1" },
 ]
 dev = [{ name = "playwright", specifier = ">=1.58,<2" }]

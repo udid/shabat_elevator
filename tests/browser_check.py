@@ -78,10 +78,11 @@ def main():
             else:
                 page.route("https://www.hebcal.com/**", lambda route: route.fulfill(json=calendar if calendar is not None else CALENDAR))
                 page.route("https://api.open-meteo.com/**", lambda route: route.fulfill(json=WEATHER))
+            config = json.loads((ROOT / "web" / "config.json").read_text(encoding="utf-8"))
+            config["sourceMode"] = "live" if live_state is not None else "simulation"
+            config["liveApiUrl"] = ""
+            page.route("**/config.json", lambda route: route.fulfill(json=config))
             if live_state is not None:
-                config = json.loads((ROOT / "web" / "config.json").read_text(encoding="utf-8"))
-                config["sourceMode"] = "live"
-                page.route("**/config.json", lambda route: route.fulfill(json=config))
                 page.route("**/api/state", lambda route: route.fulfill(json=live_state))
             page.goto(BASE_URL, wait_until="networkidle")
             expect(page.locator("#floor-select option")).to_have_count(15)

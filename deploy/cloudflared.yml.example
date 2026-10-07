@@ -1,0 +1,11 @@
+# Optional local-management configuration. Run cloudflared from the project root.
+# Replace these two placeholders with the tunnel UUID and its credentials file.
+# Keep the actual configuration and credentials inside the ignored secrets/ directory.
+tunnel: REPLACE_WITH_TUNNEL_UUID
+credentials-file: secrets/REPLACE_WITH_TUNNEL_UUID.json
+
+ingress:
+  - hostname: elevator-api.udidaniel.com
+    path: ^/api/(state|health)$
+    service: http://127.0.0.1:8001
+  - service: http_status:404

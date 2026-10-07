@@ -1,4 +1,4 @@
-import { buildRoute, estimateState, nextArrival } from './model.js';
+import { buildRoute, estimateState, nextArrival, liveTiming } from './model.js';
 import { fetchCalendar, getActivityWindow, fetchWeather } from './services.js';
 
 const $ = (id) => document.getElementById(id);
@@ -170,17 +170,9 @@ function renderWeather() {
 }
 
 function liveModel(now) {
-  const live = state.live;
-  const anchor = validDate(live?.lastArrivalAt);
-  const seen = validDate(live?.lastSeenAt);
-  const cycle = Number(live?.cycleSeconds);
-  const cycleValid = Number.isFinite(cycle) && cycle > 0 && live?.cycleSeconds !== null;
-  const fresh = seen && now - seen <= state.config.staleAfterSeconds * 1000 && seen - now <= 5000;
-  const connected = state.liveReachable && live?.sourceConnected === true && fresh;
-  const anchorValid = anchor && anchor <= now && cycleValid;
-  const withinCycle = anchorValid && now - anchor < cycle * 1000;
-  const usable = connected && withinCycle && live.measurementStatus === 'tracking';
-  return { usable, anchor: anchor?.getTime() ?? null, cycle: cycleValid ? cycle : null, connected, seen, live };
+  return liveTiming(state.live, now.getTime(), {
+    reachable: state.liveReachable, staleAfterSeconds: state.config.staleAfterSeconds,
+  });
 }
 
 function render() {
@@ -193,6 +185,7 @@ function render() {
   const simulation = demo || state.config.sourceMode !== 'live';
   const scheduled = activity.active === true;
   const live = simulation ? null : liveModel(now);
+  const anchorKind = simulation ? 'arrival' : live.anchorKind;
   let anchor = null;
   let cycle = simulation ? state.config.cycleSeconds : live.cycle;
   let available = false;
@@ -212,13 +205,15 @@ function render() {
   $('mode-banner').hidden = simulation && !available;
   $('mode-banner').classList.toggle('live-mode', !simulation);
   $('mode-banner').classList.toggle('disconnected', !simulation && !live.connected);
-  setText('mode-tag', simulation ? 'הדגמה' : live.connected ? 'חיישן מחובר' : 'חיישן מנותק');
-  setText('mode-copy', simulation ? 'הנתונים אינם מהמעלית' : live.seen ? `עדכון חיישן ${observationTime(live.seen, now)}` : 'טרם התקבל דיווח');
+  setText('mode-tag', simulation ? 'הדגמה' : live.monitorOnly ? 'מצב בדיקה' : live.connected ? 'חיישן מחובר' : 'חיישן מנותק');
+  setText('mode-copy', simulation ? 'הנתונים אינם מהמעלית' : live.monitorOnly
+    ? `טרם הופעל זיהוי בקומה 7${live.connected ? '' : ' · אין חיבור לחיישן'}`
+    : live.seen ? `עדכון חיישן ${observationTime(live.seen, now)}` : 'טרם התקבל דיווח');
   $('demo-button').disabled = false;
   $('demo-button').setAttribute('aria-pressed', String(demo));
   setText('demo-button-label', demo ? 'סיום ההדגמה' : 'הפעלת הדגמה');
 
-  const position = available ? estimateState(state.profile, anchor, now.getTime(), cycle) : null;
+  const position = available ? estimateState(state.profile, anchor, now.getTime(), cycle, anchorKind) : null;
   $('position-readout').hidden = !position;
   $('elevator-visual').hidden = !position;
   $('arrival-layout').classList.toggle('without-position', !position);
@@ -251,14 +246,16 @@ function render() {
     } else if (!scheduleKnown && !demo) {
       setText('countdown-label', activity.status === 'loading' ? 'טוען את זמני השבת והחג' : 'זמני הפעילות אינם זמינים');
     } else if (!simulation) {
-      const waiting = !live.anchor || !live.cycle || live.live?.measurementStatus === 'waiting';
-      setText('countdown-label', !live.connected ? 'התחזית אינה זמינה' : waiting ? 'ממתינים למדידת מחזור' : 'התחזית ממתינה לסנכרון');
+      const waiting = live.anchor === null || live.cycle === null || live.live?.measurementStatus === 'waiting';
+      const waitingLabel = live.anchorKind === 'departure' ? 'ממתינים לזיהוי עזיבה בקומה 7' : 'ממתינים למדידת מחזור';
+      setText('countdown-label', live.monitorOnly ? 'מצב בדיקה — טרם הופעל זיהוי בקומה 7'
+        : !live.connected ? 'התחזית אינה זמינה' : waiting ? waitingLabel : 'התחזית ממתינה לסנכרון');
     }
   } else if (state.floor === null) {
     setCountdown('--:--', false, true);
     setText('countdown-label', 'בחרו קומה להצגת התחזית');
   } else {
-    const arrival = nextArrival(state.profile, anchor, now.getTime(), state.floor, cycle);
+    const arrival = nextArrival(state.profile, anchor, now.getTime(), state.floor, cycle, anchorKind);
     setText('countdown-label', 'זמן משוער להגעה');
     if (arrival.isHere) {
       setCountdown('בקומה שלכם', true);
@@ -267,8 +264,9 @@ function render() {
     }
   }
 
-  setText('last-arrival-label', simulation ? 'זיהוי מדומה בקומה 7' : 'זיהוי אחרון בקומה 7');
+  setText('last-arrival-label', simulation ? 'זיהוי מדומה בקומה 7' : anchorKind === 'departure' ? 'עזיבה אחרונה בקומה 7' : 'הגעה אחרונה לקומה 7');
   setText('last-arrival', observationTime(anchor, now));
+  setText('cycle-label', simulation ? 'מחזור הדגמה' : live.cycleSource === 'default' ? 'מחזור ברירת מחדל' : live.cycleSource === 'measured' ? 'מחזור שנמדד' : 'מחזור');
   setText('cycle-duration', cycle ? duration(cycle) : '—');
 }
 

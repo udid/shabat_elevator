@@ -1,0 +1,21 @@
+[Unit]
+Description=Shabbat elevator public Cloudflare Tunnel
+Wants=network-online.target
+After=network-online.target shabat-elevator.service
+
+[Service]
+Type=simple
+User=admin
+WorkingDirectory=/home/admin/shabat_elevator
+ExecStart=/usr/local/bin/cloudflared --no-autoupdate --config /home/admin/shabat_elevator/secrets/cloudflared.yml tunnel run
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=15
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+
+[Install]
+WantedBy=multi-user.target

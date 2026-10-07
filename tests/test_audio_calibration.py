@@ -8,7 +8,7 @@ from pathlib import Path
 
 import numpy as np
 
-from elevator.audio_calibration import (
+from run_calibrate_audio import (
     CalibrationConfig, CalibrationInputError, _EventBuilder, _evaluate_group,
     _spectral_batches, calibrate, decode_pcm, inspect_recordings,
 )

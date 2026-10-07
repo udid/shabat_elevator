@@ -65,3 +65,25 @@ def build_runtime_config(report):
         raise ValueError("Merge gap must be nonnegative and rearm time positive")
     return {"schemaVersion": 1, "eventKind": "departure", "floor": 7,
             "defaultCycleSeconds": cycle, "detector": detector}
+
+
+def validate_runtime_config(value):
+    """Validate a compact runtime document, returning a detached allowlist copy.
+
+    The detailed calibration exporter remains the source of field validation.
+    This adapter does not need audio dependencies and does not accept a detailed
+    report (or its historic observation times) as a live runtime document.
+    """
+    if not isinstance(value, dict) or type(value.get("schemaVersion")) is not int or value["schemaVersion"] != 1:
+        raise ValueError("Runtime configuration requires schema version 1")
+    detector = value.get("detector")
+    if not isinstance(detector, dict) or detector.get("profile") != "band_level_snr_v1":
+        raise ValueError("Unsupported runtime detector profile")
+    return build_runtime_config({
+        "schemaVersion": 2,
+        "status": "ready",
+        "eventKind": value.get("eventKind"),
+        "floor": value.get("floor"),
+        "periodSeconds": value.get("defaultCycleSeconds"),
+        "parameters": {**detector, "algorithm": "hann_spectral_band_snr_level_v2"},
+    })

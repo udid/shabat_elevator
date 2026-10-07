@@ -43,7 +43,7 @@ class AudioPipelineTests(unittest.TestCase):
                 manifest.close()
             output = directory / "calibration.json"
             result = subprocess.run(
-                [sys.executable, "calibrate_audio.py", str(directory), "--output", str(output)],
+                [sys.executable, "run_calibrate_audio.py", str(directory), "--output", str(output)],
                 cwd=Path(__file__).resolve().parents[1], capture_output=True, text=True,
                 timeout=120,
             )

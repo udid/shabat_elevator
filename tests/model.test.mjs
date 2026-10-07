@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildRoute, estimateState, nextArrival, DEFAULT_ROUTE } from '../web/model.js';
+import { buildRoute, estimateState, nextArrival, liveTiming, DEFAULT_ROUTE } from '../web/model.js';
 
 const profile = buildRoute();
 const anchorMs = 1_800_000_000_000;
@@ -98,4 +98,127 @@ test('malformed timing and unsupported floors fail explicitly', () => {
   assert.throws(() => buildRoute({ stopWeights: { 0: -1 } }), RangeError);
   assert.throws(() => estimateState(profile, null, anchorMs), RangeError);
   assert.throws(() => nextArrival(profile, anchorMs, anchorMs, null), RangeError);
+  assert.throws(() => estimateState(profile, anchorMs, anchorMs, 570, 'chime'), RangeError);
+});
+
+test('a departure anchor starts motion and forecasts return before the next departure', () => {
+  const position = estimateState(profile, anchorMs, anchorMs, 570, 'departure');
+  assert.equal(position.phase, 'moving');
+  assert.equal(position.floor, null);
+  assert.equal(position.fromFloor, 7);
+  assert.equal(position.nextFloor, 5);
+  assert.equal(position.direction, 'down');
+  approximately(position.progress, 0);
+  const next = nextArrival(profile, anchorMs, anchorMs, 7, 570, 'departure');
+  assert.equal(next.isHere, false);
+  approximately(next.seconds, 570 - profile.stops[0].dwellSeconds);
+  approximately(next.arrivalMs, at(next.seconds));
+  const target = profile.stops.find(stop => stop.floor === 5);
+  approximately(nextArrival(profile, anchorMs, anchorMs, 5, 570, 'departure').seconds,
+    target.arrivalSeconds - profile.stops[0].departureSeconds);
+});
+
+test('departure profile wraps into the anchor dwell and scales without losing the observation', () => {
+  for (const cycle of [570, 900]) {
+    const dwell = profile.stops[0].dwellSeconds * cycle / profile.cycleSeconds;
+    const expectedArrival = cycle - dwell;
+    const duringDwell = at(expectedArrival + 1);
+    const position = estimateState(profile, anchorMs, duringDwell, cycle, 'departure');
+    assert.equal(position.phase, 'stopped');
+    assert.equal(position.floor, 7);
+    const arrival = nextArrival(profile, anchorMs, duringDwell, 7, cycle, 'departure');
+    assert.equal(arrival.isHere, true);
+    approximately(arrival.arrivalMs, at(expectedArrival));
+    assert.equal(estimateState(profile, anchorMs, at(cycle), cycle, 'departure').phase, 'moving');
+    const laterArrival = nextArrival(profile, anchorMs, at(expectedArrival + cycle + 1), 7, cycle, 'departure');
+    approximately(laterArrival.arrivalMs, at(expectedArrival + cycle));
+  }
+});
+
+const departureSnapshot = (overrides = {}) => ({
+  mode: 'live', anchorKind: 'departure', sourceConnected: true,
+  lastDepartureAt: new Date(anchorMs).toISOString(), lastArrivalAt: null,
+  lastSeenAt: new Date(at(1)).toISOString(), cycleSeconds: 570,
+  cycleSource: 'default', measurementStatus: 'tracking', calibrated: false,
+  ...overrides,
+});
+const connected = { reachable: true, staleAfterSeconds: 90 };
+
+test('first real departure uses the default cycle without claiming a measured cycle', () => {
+  const live = liveTiming(departureSnapshot(), at(2), connected);
+  assert.equal(live.usable, true);
+  assert.equal(live.anchorKind, 'departure');
+  assert.equal(live.anchor, anchorMs);
+  assert.equal(live.cycleSource, 'default');
+  assert.equal(live.cycle, 570);
+  const waiting = liveTiming(departureSnapshot({ lastDepartureAt: null, measurementStatus: 'waiting' }), at(2), connected);
+  assert.equal(waiting.usable, false);
+  assert.equal(waiting.anchor, null);
+  assert.equal(waiting.cycleSource, 'default');
+  const measured = liveTiming(departureSnapshot({ cycleSource: 'measured', cycleSeconds: 600 }), at(2), connected);
+  assert.equal(measured.usable, true);
+  assert.equal(measured.cycleSource, 'measured');
+});
+
+test('unreachable, stale and missed-cycle snapshots cannot extrapolate detections', () => {
+  const snapshot = departureSnapshot();
+  const unreachable = liveTiming(snapshot, at(2), { ...connected, reachable: false });
+  assert.equal(unreachable.usable, false);
+  assert.equal(unreachable.connected, false);
+  assert.equal(unreachable.anchor, anchorMs);
+  const stale = liveTiming(snapshot, at(92), connected);
+  assert.equal(stale.connected, false);
+  assert.equal(stale.usable, false);
+  assert.equal(liveTiming(departureSnapshot({ measurementStatus: 'stale' }), at(2), connected).usable, false);
+  const expired = liveTiming(departureSnapshot({ lastSeenAt: new Date(at(570)).toISOString() }), at(570), connected);
+  assert.equal(expired.connected, true);
+  assert.equal(expired.usable, false);
+  assert.equal(expired.anchor, anchorMs);
+  assert.equal(snapshot.lastDepartureAt, new Date(anchorMs).toISOString());
+});
+
+test('malformed live cycles and observations never produce a forecast', () => {
+  for (const cycleSeconds of [null, undefined, 0, -1, 300, 1800, Infinity, '570', true]) {
+    const live = liveTiming(departureSnapshot({ cycleSeconds }), at(2), connected);
+    assert.equal(live.usable, false);
+    assert.equal(live.cycle, null);
+  }
+  for (const lastDepartureAt of [null, '', 'invalid', 0, new Date(at(3)).toISOString(), '2027-01-01T12:00:00']) {
+    const live = liveTiming(departureSnapshot({ lastDepartureAt, lastArrivalAt: new Date(anchorMs).toISOString() }), at(2), connected);
+    assert.equal(live.usable, false);
+    assert.equal(live.anchor, null);
+  }
+  for (const overrides of [
+    { anchorKind: 'chime' }, { anchorKind: null, lastArrivalAt: new Date(anchorMs).toISOString() },
+    { cycleSource: 'simulation' }, { cycleSource: null },
+    { lastSeenAt: null }, { lastSeenAt: new Date(at(10)).toISOString() },
+    { lastSeenAt: new Date(at(-1)).toISOString() }, { sourceConnected: false },
+    { mode: 'simulation' }, { measurementStatus: 'waiting' },
+  ]) {
+    assert.equal(liveTiming(departureSnapshot(overrides), at(2), connected).usable, false);
+  }
+  assert.equal(liveTiming(null, at(2), connected).usable, false);
+});
+
+test('legacy arrival snapshots retain arrival semantics without changing departure data', () => {
+  const snapshot = {
+    mode: 'live', sourceConnected: true, lastArrivalAt: new Date(anchorMs).toISOString(),
+    lastSeenAt: new Date(anchorMs).toISOString(), cycleSeconds: 570, measurementStatus: 'tracking',
+  };
+  const live = liveTiming(snapshot, anchorMs, connected);
+  assert.equal(live.usable, true);
+  assert.equal(live.anchorKind, 'arrival');
+  assert.equal(live.cycleSource, null);
+  assert.equal(estimateState(profile, live.anchor, anchorMs, live.cycle, live.anchorKind).floor, 7);
+});
+
+test('monitor-only capture cannot enable a forecast even with a fresh stored departure', () => {
+  const live = liveTiming(departureSnapshot({ monitorOnly: true }), at(2), connected);
+  assert.equal(live.connected, true);
+  assert.equal(live.monitorOnly, true);
+  assert.equal(live.usable, false);
+  assert.equal(live.anchor, anchorMs);
+  const waiting = liveTiming(departureSnapshot({ monitorOnly: true, lastDepartureAt: null }), at(2), connected);
+  assert.equal(waiting.usable, false);
+  assert.equal(waiting.anchor, null);
 });

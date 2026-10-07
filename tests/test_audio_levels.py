@@ -14,7 +14,7 @@ from pathlib import Path
 
 import numpy as np
 
-from elevator.audio_calibration import (
+from run_calibrate_audio import (
     CalibrationConfig, _is_demonstrably_weaker, _spectral_batches, calibrate, inspect_recordings,
 )
 

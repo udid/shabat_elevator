@@ -10,8 +10,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-import calibrate_audio
-from elevator.audio_calibration import CalibrationInputError
+import run_calibrate_audio
+from run_calibrate_audio import CalibrationInputError
 from elevator.runtime_config import build_runtime_config
 
 
@@ -154,10 +154,10 @@ class RuntimeExportCliTests(unittest.TestCase):
 
     def invoke(self, report, arguments):
         stdout, stderr = io.StringIO(), io.StringIO()
-        with patch("elevator.audio_calibration.calibrate", return_value=report) as calibration, \
+        with patch("run_calibrate_audio.calibrate", return_value=report) as calibration, \
              contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
             try:
-                code = calibrate_audio.main(["never-open-this.wav", "--quiet", *map(str, arguments)])
+                code = run_calibrate_audio.main(["never-open-this.wav", "--quiet", *map(str, arguments)])
             except SystemExit as error:
                 code = error.code
         return code, stdout.getvalue(), stderr.getvalue(), calibration
@@ -227,9 +227,9 @@ class RuntimeExportCliTests(unittest.TestCase):
         report_path = self.directory / "report.json"
         runtime_path = self.directory / "report.runtime.json"
         runtime_path.write_bytes(b"previous trusted runtime")
-        with patch("elevator.audio_calibration.calibrate", side_effect=CalibrationInputError("bad input")), \
+        with patch("run_calibrate_audio.calibrate", side_effect=CalibrationInputError("bad input")), \
              contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-            code = calibrate_audio.main(["never-open-this.wav", "--quiet", "--output", str(report_path)])
+            code = run_calibrate_audio.main(["never-open-this.wav", "--quiet", "--output", str(report_path)])
         self.assertEqual(code, 2)
         self.assertFalse(report_path.exists())
         self.assertEqual(runtime_path.read_bytes(), b"previous trusted runtime")
