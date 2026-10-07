@@ -28,9 +28,14 @@
 
   <div class="page-shell">
     <header class="site-header">
-      <a class="brand" href="./" aria-label="מעלית שבת — דף הבית">
-        <h1 class="brand-title">מעלית שבת<span class="brand-dot" aria-hidden="true">.</span></h1>
-      </a>
+      <div class="brand-block">
+        <a class="brand" href="./" aria-label="מעלית שבת — דף הבית">
+          <h1 class="brand-title">מעלית שבת<span class="brand-dot" aria-hidden="true">.</span></h1>
+        </a>
+        <div class="detector-connection" id="detector-connection" data-status="checking" role="status" aria-live="polite" aria-atomic="true">
+          <span class="connection-dot" aria-hidden="true"></span><span id="detector-connection-label">בודק חיבור לגלאי…</span>
+        </div>
+      </div>
       <div class="header-actions">
         <button class="icon-button" id="fullscreen-button" type="button" aria-label="מעבר למסך מלא" title="מסך מלא"><svg class="icon" aria-hidden="true"><use href="#icon-expand"/></svg></button>
         <div class="settings">

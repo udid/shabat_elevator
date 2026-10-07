@@ -4,7 +4,7 @@ import { fetchCalendar, getActivityWindow, fetchWeather } from './services.js';
 const $ = (id) => document.getElementById(id);
 const state = {
   config: null, profile: null, floor: null, calendar: null, weather: null,
-  live: null, liveReachable: false, polling: false, manualDemo: false,
+  live: null, liveReachable: false, liveChecked: false, polling: false, manualDemo: false,
   demoAnchor: null, wakeRequested: true, wakeLock: null, wakePending: false,
   toastTimer: null, lastCalendarFetch: 0, lastWeatherFetch: 0, calendarPending: false,
   weatherPending: false,
@@ -171,13 +171,34 @@ function renderWeather() {
 
 function liveModel(now) {
   return liveTiming(state.live, now.getTime(), {
-    reachable: state.liveReachable, staleAfterSeconds: state.config.staleAfterSeconds,
+    reachable: state.liveReachable && navigator.onLine !== false, staleAfterSeconds: state.config.staleAfterSeconds,
   });
+}
+
+function setDetectorConnection(status, label, detail) {
+  $('detector-connection').dataset.status = status;
+  $('detector-connection').title = detail;
+  setText('detector-connection-label', label);
+}
+
+function renderDetectorConnection(now) {
+  if (state.config.sourceMode !== 'live') {
+    setDetectorConnection('disabled', 'גלאי לא מוגדר', 'האתר מוגדר להדגמה ללא מקור נתונים חי');
+  } else if (navigator.onLine === false || (state.liveChecked && !state.liveReachable)) {
+    setDetectorConnection('unavailable', 'אין חיבור לגלאי', 'האתר אינו מצליח לקבל נתונים מהשרת');
+  } else if (!state.liveChecked) {
+    setDetectorConnection('checking', 'בודק חיבור לגלאי…', 'ממתין לתשובה מהשרת');
+  } else if (liveModel(now).connected) {
+    setDetectorConnection('connected', 'מחובר לגלאי', 'מתקבלים דיווחים עדכניים מהגלאי; מצב הבדיקה או ההדגמה מוצג בנפרד');
+  } else {
+    setDetectorConnection('disconnected', 'הגלאי אינו מדווח', 'השרת זמין, אך לא התקבל דיווח עדכני מהגלאי');
+  }
 }
 
 function render() {
   if (!state.config) return;
   const now = new Date();
+  renderDetectorConnection(now);
   renderClock(now);
   const activity = activityAt(now);
   renderCalendar(activity);
@@ -301,7 +322,7 @@ async function pollLive() {
     state.live = live;
     state.liveReachable = true;
   } catch { state.liveReachable = false; }
-  finally { clearTimeout(timeout); state.polling = false; render(); }
+  finally { clearTimeout(timeout); state.polling = false; state.liveChecked = true; render(); }
 }
 
 function supportsWakeLock() {
@@ -378,6 +399,7 @@ function setupControls() {
     refreshServicesIfNeeded();
   });
   window.addEventListener('online', () => { refreshCalendar(); refreshWeather(); pollLive(); });
+  window.addEventListener('offline', () => { state.liveReachable = false; render(); });
   renderWakeState();
   acquireWakeLock();
 }
@@ -408,6 +430,7 @@ async function init() {
     setInterval(() => { refreshServicesIfNeeded(); renderWeather(); }, 30_000);
     await Promise.allSettled([refreshCalendar(), refreshWeather(), pollLive()]);
   } catch (error) {
+    setDetectorConnection('unavailable', 'אין חיבור לגלאי', 'טעינת הגדרות האתר נכשלה');
     setText('mode-tag', 'לא זמין');
     setText('mode-copy', '');
     setText('countdown-label', 'טעינת האתר נכשלה · נסו לרענן');

@@ -96,7 +96,13 @@ def main():
             expect(page.locator("#settings-panel")).not_to_be_visible()
             expect(page.locator("#settings-button")).to_be_focused()
 
+        def expect_connection(page, status, label):
+            expect(page.locator("#detector-connection")).to_have_attribute("data-status", status)
+            expect(page.locator("#detector-connection-label")).to_have_text(label)
+            expect(page.locator("#detector-connection")).to_be_visible()
+
         context, page = prepare()
+        expect_connection(page, "disabled", "גלאי לא מוגדר")
         expect(page.locator("#floor-select")).to_have_value("")
         expect(page.locator("#countdown-label")).to_have_text("מחוץ לשעות הפעילות")
         expect(page.locator("#countdown")).not_to_be_visible()
@@ -135,7 +141,7 @@ def main():
             expect(page.locator("#countdown")).to_have_text(re.compile(r"\d{2}:\d{2}"))
             assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), f"Horizontal overflow on {name}"
             assert page.evaluate("document.documentElement.scrollHeight <= innerHeight"), f"Vertical overflow on {name}"
-            for selector in ("#floor-select", "#countdown", "#current-floor", "#last-arrival", "#cycle-duration", "#mode-tag", "#mode-copy", "#candle-time", "#havdalah-time", "#parasha-name", "#parasha-detail", "#hebrew-date", "#gregorian-date", "#wall-clock", "#weather-temperature", "#fullscreen-button", "#settings-button"):
+            for selector in ("#floor-select", "#countdown", "#current-floor", "#last-arrival", "#cycle-duration", "#mode-tag", "#mode-copy", "#candle-time", "#havdalah-time", "#parasha-name", "#parasha-detail", "#hebrew-date", "#gregorian-date", "#wall-clock", "#weather-temperature", "#fullscreen-button", "#settings-button", "#detector-connection"):
                 expect(page.locator(selector)).to_be_in_viewport(ratio=1)
             clipped = page.evaluate("""() => [...document.querySelectorAll('.elevator-card,.info-card,.route-panel')].filter(e => e.scrollHeight > e.clientHeight + 1 || e.scrollWidth > e.clientWidth + 1).map(e => e.className)""")
             assert not clipped, f"Clipped card content on {name}: {clipped}"
@@ -252,6 +258,7 @@ def main():
         live = {"mode": "live", "sourceConnected": True, "lastArrivalAt": "2026-10-09T14:57:00Z",
                 "cycleSeconds": 570, "lastSeenAt": "2026-10-09T14:59:58Z", "measurementStatus": "tracking"}
         context, page = prepare(active=True, live_state=live)
+        expect_connection(page, "connected", "מחובר לגלאי")
         page.locator("#floor-select").select_option("6")
         expect(page.locator("#mode-tag")).to_have_text("חיישן מחובר")
         expect(page.locator("#mode-copy")).to_contain_text("17:59:58")
@@ -260,6 +267,7 @@ def main():
         original_anchor = page.locator("#last-arrival").inner_text()
         toggle_demo(page)
         expect(page.locator("#mode-tag")).to_have_text("הדגמה")
+        expect_connection(page, "connected", "מחובר לגלאי")
         expect(page.locator("#last-arrival-label")).to_contain_text("מדומה")
         expect(page.locator("#countdown")).to_be_visible()
         toggle_demo(page)
@@ -271,10 +279,12 @@ def main():
         expect(page.locator("#countdown")).not_to_be_visible()
         expect(page.locator("#position-readout")).not_to_be_visible()
         expect(page.locator("#mode-tag")).to_have_text("חיישן מנותק")
+        expect_connection(page, "disconnected", "הגלאי אינו מדווח")
         expect(page.locator("#last-arrival")).to_have_text(original_anchor)
         toggle_demo(page)
         expect(page.locator("#countdown")).to_be_visible()
         expect(page.locator("#mode-tag")).to_have_text("הדגמה")
+        expect_connection(page, "disconnected", "הגלאי אינו מדווח")
         toggle_demo(page)
         expect(page.locator("#mode-tag")).to_have_text("חיישן מנותק")
         expect(page.locator("#countdown")).not_to_be_visible()
@@ -291,6 +301,7 @@ def main():
         live.update(lastArrivalAt=None, cycleSeconds=None, measurementStatus="waiting", lastSeenAt="2026-10-09T15:00:19Z")
         page.clock.run_for(5500)
         expect(page.locator("#countdown-label")).to_have_text("ממתינים למדידת מחזור")
+        expect_connection(page, "connected", "מחובר לגלאי")
         live.update(lastArrivalAt="2026-10-09T14:59:00Z", cycleSeconds=570, measurementStatus="tracking", lastSeenAt="2026-10-09T15:00:24Z")
         page.clock.run_for(5500)
         expect(page.locator("#countdown")).to_be_visible()
@@ -298,6 +309,31 @@ def main():
         expect(page.locator("#arrival-note")).not_to_be_visible()
         context.close()
         print("PASS: disconnection, old observations, waiting and recovery retain distinct arrival and heartbeat timestamps")
+
+        monitor = {"mode": "live", "sourceConnected": True, "monitorOnly": True,
+                   "lastSeenAt": "2026-10-09T14:59:58Z", "measurementStatus": "waiting"}
+        context, page = prepare(320, 640, active=True, live_state=monitor)
+        expect(page.locator("#mode-tag")).to_have_text("מצב בדיקה")
+        expect_connection(page, "connected", "מחובר לגלאי")
+        expect(page.locator("#detector-connection")).to_be_in_viewport(ratio=1)
+        page.route("**/api/state", lambda route: route.fulfill(status=503, body="Unavailable"))
+        page.clock.run_for(5500)
+        expect_connection(page, "unavailable", "אין חיבור לגלאי")
+        page.unroute("**/api/state")
+        page.route("**/api/state", lambda route: route.fulfill(json=monitor))
+        monitor["lastSeenAt"] = "2026-10-09T14:58:00Z"
+        page.clock.run_for(5500)
+        expect_connection(page, "disconnected", "הגלאי אינו מדווח")
+        monitor["lastSeenAt"] = page.evaluate("new Date().toISOString()")
+        page.clock.run_for(5500)
+        expect_connection(page, "connected", "מחובר לגלאי")
+        context.set_offline(True)
+        expect_connection(page, "unavailable", "אין חיבור לגלאי")
+        monitor["lastSeenAt"] = page.evaluate("new Date().toISOString()")
+        context.set_offline(False)
+        expect_connection(page, "connected", "מחובר לגלאי")
+        context.close()
+        print("PASS: detector connection stays independent of monitor mode and distinguishes API failure, stale heartbeat and browser offline/recovery")
 
         holidays = {"items": CALENDAR["items"] + [
             {"category": "holiday", "date": "2026-10-09", "hebrew": "שמיני עצרת", "yomtov": True},
