@@ -428,7 +428,7 @@ async function init() {
     setupControls();
     render();
     setInterval(render, 1000);
-    setInterval(pollLive, 5000);
+    setInterval(pollLive, 30_000);
     setInterval(() => { refreshServicesIfNeeded(); renderWeather(); }, 30_000);
     await Promise.allSettled([refreshCalendar(), refreshWeather(), pollLive()]);
   } catch (error) {
