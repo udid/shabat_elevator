@@ -1,152 +1,304 @@
 @charset "UTF-8";
-:root{color-scheme:dark;--bg:#0d161e;--surface:#131f29;--surface-2:#172631;--surface-3:#1c2e39;--line:#2a3b46;--text:#edf2f2;--muted:#9aadb6;--subtle:#748d99;--mint:#9debd4;--mint-bright:#72ddbc;--gold:#ddc393;--radius:22px;font-family:"Segoe UI",Arial,sans-serif;font-synthesis:none}
-*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 82% 0%,#1c2b343d,transparent 52%),var(--bg);color:var(--text);line-height:1.55;min-width:320px}button,select{font:inherit}button,a,select{-webkit-tap-highlight-color:transparent}button{cursor:pointer}button:disabled{cursor:default;opacity:.55}button:focus-visible,a:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--mint);outline-offset:5px}a{color:inherit;text-decoration:none}button{color:inherit}h1,h2,h3,p{margin:0}.svg-defs{position:absolute;width:0;height:0;overflow:hidden}.icon{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}.page-shell{max-width:1312px;padding:0 48px;margin:0 auto}.site-header{display:flex;align-items:center;justify-content:space-between;min-height:104px;border-bottom:1px solid var(--line);gap:20px}.brand{display:flex;gap:15px;align-items:center}.brand-mark{height:46px;width:46px;display:grid;place-items:center;background:var(--surface-3);border:1px solid #3c535d;border-radius:13px;color:var(--mint)}.brand-mark .icon{width:26px;height:26px}.brand strong{display:block;font-size:20px;letter-spacing:-.5px;font-weight:650}.brand-address{display:block;color:var(--muted);font-size:13px;margin-top:1px}.brand-address i,footer i{font-style:normal;padding:0 6px;color:var(--subtle)}.header-actions{display:flex;gap:24px;align-items:center}.public-label{display:flex;align-items:center;gap:9px;font-size:12px;color:var(--muted)}.status-dot{width:6px;height:6px;display:inline-block;border-radius:50%;background:var(--mint-bright);flex-shrink:0}.icon-button{height:39px;width:39px;border-radius:10px;background:transparent;border:1px solid var(--line);display:grid;place-items:center;color:var(--muted);transition:background .2s}.icon-button:hover{background:var(--surface-2);color:var(--text)}.icon-button .icon{width:17px;height:17px}.welcome-row{display:flex;justify-content:space-between;align-items:center;gap:24px;padding:37px 0 31px}.eyebrow{color:var(--subtle);font-size:12px;letter-spacing:.25px}.welcome-row h1{font-weight:500;font-size:30px;line-height:1.5;letter-spacing:-1px;margin-top:2px}.clock-block{text-align:left;white-space:nowrap}.wall-clock{font-size:40px;font-weight:350;line-height:1.15;letter-spacing:1px;font-variant-numeric:tabular-nums}.wall-clock span{font-size:18px;letter-spacing:0;color:var(--subtle);padding-left:5px}.calendar-line{display:flex;gap:7px;margin-top:7px;font-size:12px;color:var(--muted)}.date-divider{color:var(--subtle)}.mode-banner{display:flex;align-items:center;gap:12px;margin-bottom:14px;padding:11px 17px;background:#d9b5740a;border:1px solid #8b75472e;border-radius:11px;font-size:12px;color:#c6b18d}.mode-tag{font-size:10px;padding:2px 7px;border:1px solid #8b754761;border-radius:5px;color:var(--gold);font-weight:600;white-space:nowrap}.mode-banner.live-mode{background:#9debd40a;border-color:#9debd42a;color:var(--muted)}.live-mode .mode-tag{border-color:#9debd44a;color:var(--mint)}.elevator-card{display:grid;grid-template-columns:minmax(0,1fr) 252px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}.elevator-main{padding:25px 30px 0}.section-topline{display:flex;align-items:center;justify-content:space-between;gap:12px}.section-topline h2{font-size:16px;font-weight:550;display:flex;gap:10px;align-items:center}.section-topline h2>.icon{width:19px;height:19px;color:var(--muted)}.activity-pill{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--muted);padding:5px 9px;background:#27364177;border:1px solid #34455066;border-radius:7px}.activity-pill.active{color:var(--mint);background:#9debd40b;border-color:#9debd420}.activity-pill:not(.active) .status-dot{background:#718894}.activity-pill.unknown .status-dot{background:var(--gold)}.arrival-layout{display:grid;grid-template-columns:minmax(0,1fr) 180px;gap:36px;padding:31px 0 34px;align-items:center;min-height:302px}.floor-picker{display:flex;align-items:center;gap:13px;margin-bottom:21px}.floor-picker label{font-size:13px;color:var(--muted)}.select-wrap{position:relative}.select-wrap select{appearance:none;-webkit-appearance:none;min-width:123px;height:37px;border:1px solid #40535e;border-radius:8px;background:var(--surface-2);color:var(--text);padding:4px 12px 5px 33px;font-size:13px;cursor:pointer}.select-wrap>span{position:absolute;top:4px;left:11px;pointer-events:none;color:var(--mint);font-size:19px}.countdown-label{color:var(--muted);font-size:13px;min-height:21px}.countdown{display:inline-block;font-family:"Segoe UI",Arial,sans-serif;font-size:86px;line-height:1.12;font-weight:350;letter-spacing:-4px;font-variant-numeric:tabular-nums;color:var(--mint);margin:3px 0 5px}.countdown>span{color:#688f87;font-weight:300;padding:0 3px}.countdown.empty{color:#647c88}.countdown.message{font-family:inherit;font-size:40px;letter-spacing:-1.5px;line-height:1.9}.arrival-note{font-size:12px;color:var(--subtle);min-height:20px;max-width:310px}.demo-button{display:inline-flex;align-items:center;gap:9px;padding:6px 11px;margin-top:14px;border:1px solid #547366;border-radius:7px;background:#9debd40a;color:var(--mint);font-size:12px}.demo-button:hover{background:#9debd416}.demo-button>span:first-child{font-size:17px;line-height:1}.elevator-visual{align-self:center;border:1px solid #3b505a;border-radius:12px 12px 3px 3px;position:relative;padding:14px 16px 0;overflow:hidden;background:linear-gradient(130deg,#25394340,#101c23bb);box-shadow:inset 0 0 20px #06131a33}.visual-label{font-size:9px;color:var(--subtle);display:flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap}.live-dash{width:10px;height:2px;border-radius:2px;background:var(--mint);opacity:.6}.lift-display{display:flex;align-items:center;justify-content:center;gap:10px;height:75px;direction:ltr}.lift-floor{font-size:57px;font-weight:350;line-height:1;letter-spacing:-3px;color:var(--mint);font-variant-numeric:tabular-nums}.direction-arrow{color:var(--mint);width:23px;height:29px}.direction-arrow.down{transform:rotate(180deg)}.direction-arrow.stopped{visibility:hidden;width:0}.position-description{text-align:center;color:var(--muted);font-size:10px;min-height:31px}.lift-doors{height:76px;display:flex;gap:3px;padding:0 6px;margin-top:4px}.lift-doors span{flex:1;background:linear-gradient(90deg,#34485133,#34485177);border:1px solid #4358646b;border-bottom:0;border-radius:2px 2px 0 0;position:relative}.lift-doors span+span{background:linear-gradient(-90deg,#34485133,#34485177)}.lift-doors span::after{content:"";position:absolute;right:7px;top:10px;bottom:10px;width:1px;background:#57718025}.lift-doors span+span::after{right:auto;left:7px}.lift-base{height:5px;background:#48606b73;margin:0 -16px}.telemetry-row{display:grid;grid-template-columns:1.2fr 1fr 1fr;border-top:1px solid var(--line);padding:19px 0 23px}.telemetry-item{display:flex;flex-direction:column;align-items:flex-start;padding:0 18px;border-left:1px solid var(--line);gap:2px}.telemetry-item:first-child{padding-right:0}.telemetry-item:last-child{border:0;padding-left:0}.telemetry-label{font-size:10px;display:flex;align-items:center;gap:7px;color:var(--muted);white-space:nowrap}.telemetry-label .icon{width:13px;height:13px}.telemetry-item>strong{font-size:22px;font-weight:450;letter-spacing:.5px;font-variant-numeric:tabular-nums;line-height:1.5}.telemetry-item>strong.source-name{font-size:18px;letter-spacing:0;padding-top:3px}.telemetry-detail{font-size:10px;color:var(--subtle)}.source-dot{width:5px;height:5px;background:var(--gold);border-radius:50%}.source-dot.connected{background:var(--mint)}.source-dot.disconnected{background:#cf908b}.route-panel{padding:27px 23px;background:#101c25;border-right:1px solid var(--line)}.route-heading{display:flex;justify-content:space-between;align-items:center;margin-bottom:25px;gap:10px}.route-heading .eyebrow{font-size:10px}.route-heading h3{font-size:17px;font-weight:500;margin-top:2px}.route-badge{font-family:Arial,sans-serif;font-size:27px;line-height:1;color:var(--mint);align-self:flex-start;margin-top:4px}.route-group{margin-bottom:24px}.route-group-label{display:block;font-size:10px;color:var(--muted);margin-bottom:10px}.route-stops{display:flex;flex-wrap:wrap;gap:8px 6px;align-items:center;position:relative;justify-content:flex-end}.stop-node{display:grid;place-items:center;width:29px;height:30px;font-size:11px;font-variant-numeric:tabular-nums;border:1px solid #334651;border-radius:6px;color:#a8b7be;position:relative;background:#1a2a35}.stop-node.selected{color:var(--mint);border-color:#719f91;background:#28463e}.stop-node.current{box-shadow:0 0 0 2px #9debd42a}.stop-node.double{width:39px}.stop-node small{font-size:8px;position:absolute;left:1px;top:0;color:var(--gold);line-height:1.3}.route-caption{display:flex;align-items:center;gap:5px;flex-wrap:wrap;font-size:9px;color:var(--subtle);margin-top:27px}.route-key{width:6px;height:6px;background:var(--mint);border-radius:2px}.double-stop{color:var(--gold);font-size:10px;margin-right:7px;direction:ltr}.route-note{border-top:1px solid var(--line);padding-top:17px;margin-top:16px;color:var(--subtle);font-size:11px;line-height:1.8}.info-grid{display:grid;grid-template-columns:1.35fr 1fr 1fr;gap:16px;margin-top:18px}.info-card{background:var(--surface);border:1px solid var(--line);border-radius:16px;min-height:217px;padding:20px 23px 16px;display:flex;flex-direction:column}.info-card-heading{display:flex;align-items:center;gap:10px}.small-icon{color:var(--gold);display:grid;place-items:center}.small-icon .icon{height:18px;width:18px}.info-card h2{font-size:13px;font-weight:500;white-space:nowrap}.city-tag{font-size:9px;color:var(--subtle);margin-right:auto}.shabbat-times{display:flex;align-items:center;justify-content:space-between;margin-top:15px;gap:18px}.shabbat-times>div{display:flex;flex-direction:column}.shabbat-times>div>span{font-size:10px;color:var(--muted)}.shabbat-times strong{font-size:32px;font-weight:350;letter-spacing:.5px;line-height:1.4;font-variant-numeric:tabular-nums}.shabbat-times small{font-size:9px;color:var(--subtle)}.times-rule{width:1px;height:38px;background:var(--line)}.card-bottom{font-size:9px;color:var(--subtle);margin-top:auto;padding-top:16px}.parasha-name{font-size:29px;font-weight:400;letter-spacing:-.6px;margin-top:19px;line-height:1.3}.subtle{color:var(--muted);font-size:11px;margin-top:6px}.weather-main{display:flex;align-items:center;gap:20px;margin-top:10px}.weather-main strong{font-size:45px;font-weight:350;line-height:1.2;letter-spacing:-1px}.weather-sun{width:36px;height:36px;color:var(--gold);stroke-width:1}.weather-card .subtle{margin-top:6px}.screen-bar{display:flex;align-items:center;justify-content:space-between;gap:25px;padding:20px 23px;margin-top:20px;border:1px solid var(--line);border-radius:12px;background:#17263140}.screen-copy{display:flex;align-items:center;gap:15px}.screen-copy>.icon{color:var(--muted);width:24px;height:24px}.screen-copy strong{font-size:12px;font-weight:500}.screen-copy p{font-size:10px;color:var(--subtle);margin-top:2px}.wake-toggle{border:0;background:none;padding:6px 0;display:flex;align-items:center;gap:9px;white-space:nowrap;font-size:11px;color:var(--muted)}.toggle-track{display:block;width:31px;height:18px;border-radius:12px;background:#344752;border:1px solid #46606d;padding:2px}.toggle-track>span{display:block;border-radius:50%;width:12px;height:12px;background:#adbbc1;transition:transform .2s}.wake-toggle[aria-pressed=true]{color:var(--mint)}.wake-toggle[aria-pressed=true] .toggle-track{background:#326153;border-color:#5c9885}.wake-toggle[aria-pressed=true] .toggle-track>span{background:var(--mint);transform:translateX(-12px)}.about-details{margin:20px 0;color:var(--subtle);font-size:11px}.about-details summary{cursor:pointer;display:list-item;list-style-position:inside}.about-details>div{max-width:780px;padding:15px 0 5px;line-height:1.9}.about-details p+p{margin-top:8px}.data-attribution a{color:var(--muted);text-decoration:underline;text-underline-offset:3px}footer{display:flex;align-items:center;justify-content:space-between;gap:15px;font-size:10px;color:var(--subtle);padding:21px 0 28px;border-top:1px solid var(--line)}footer>a:hover{color:var(--mint)}footer>a span{margin-right:4px}.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:10;background:#244137;border:1px solid #5a8c76;border-radius:10px;color:var(--text);padding:12px 20px;max-width:calc(100% - 30px);font-size:13px;box-shadow:0 8px 35px #0007;text-align:center}.noscript{background:#5e3933;color:white;padding:20px;text-align:center;position:fixed;bottom:0;width:100%}[hidden]{display:none!important}
 
-/* Dashboard layout: preserve all live data within the available viewport. */
-.page-shell{max-width:1600px;min-height:100dvh;padding:0 24px;display:flex;flex-direction:column;gap:10px}
-.site-header{min-height:64px;padding:8px 0;gap:16px;flex-shrink:0}
-.brand{gap:9px;flex-shrink:0}.brand-mark{width:34px;height:34px;border-radius:9px}.brand-mark .icon{width:21px;height:21px}.brand strong{font-size:17px}.brand-address{font-size:11px}
-.header-title{font-size:21px;font-weight:500;line-height:1.2;letter-spacing:-.5px}
-.clock-block{margin-inline-start:auto}.wall-clock{font-size:28px}.wall-clock span{font-size:13px}.calendar-line{font-size:10px;margin-top:2px;gap:5px}
-.header-actions{gap:8px;flex-shrink:0}.wake-toggle{min-height:36px;border:1px solid var(--line);border-radius:9px;padding:5px 8px;font-size:11px}.toggle-track{flex-shrink:0}.icon-button{width:36px;height:36px}
-.visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
-main{display:flex;flex-direction:column;gap:10px;flex:1;min-height:0}
-.mode-banner{margin:0;padding:6px 12px;font-size:11px;flex-shrink:0}
-.elevator-card{flex:1;grid-template-columns:minmax(0,1fr) 260px;min-height:0;border-radius:16px}
-.elevator-main{padding:16px 22px 0;display:flex;flex-direction:column;min-width:0}
-.arrival-layout{flex:1;min-height:0;padding:12px 0;gap:24px;grid-template-columns:minmax(0,1fr) 145px}
-.floor-picker{margin-bottom:8px}.countdown{font-size:clamp(54px,10vh,100px);line-height:1.05}.countdown.message{font-size:32px;line-height:1.4}.countdown-label{font-size:12px}.arrival-note{font-size:11px;max-width:none}.demo-button{margin-top:6px;padding:3px 9px}
-.elevator-visual{padding:10px 12px 0}.lift-display{height:64px}.lift-floor{font-size:48px}.lift-doors{height:34px}.position-description{min-height:25px}.lift-base{margin:0 -12px}
-.telemetry-row{padding:10px 0;flex-shrink:0}.telemetry-item>strong{font-size:21px}.telemetry-detail{font-size:10px}
-.route-panel{padding:16px 18px;display:flex;flex-direction:column;justify-content:center;gap:14px}.route-heading,.route-group,.route-caption,.route-note{margin:0}.route-heading h3{font-size:16px}.route-group-label{margin-bottom:6px}.route-note{padding-top:10px;font-size:10px}.route-caption{gap:6px}.route-stops{gap:6px}.stop-node{width:28px;height:28px}
-.info-grid{margin:0;gap:10px;grid-template-columns:1.35fr 1fr 1fr;flex-shrink:0}.info-card{min-height:0;padding:12px 16px;border-radius:12px}.shabbat-times{margin-top:6px;justify-content:space-around;gap:10px}.shabbat-times strong{font-size:28px}.card-bottom{padding-top:6px;font-size:10px}.parasha-name{font-size:24px;margin-top:6px;line-height:1.2}.weather-main{margin-top:5px;gap:12px}.weather-main strong{font-size:34px}.weather-sun{width:27px;height:27px}.subtle{margin-top:3px}
-footer{padding:0 0 8px;border:0;font-size:10px;flex-shrink:0}.about-button{border:0;background:none;padding:4px 0;color:var(--muted);font-size:11px;text-decoration:underline;text-underline-offset:3px}
-.about-dialog{width:min(640px,calc(100% - 32px));max-height:85dvh;padding:24px;background:var(--surface);color:var(--text);border:1px solid var(--line);border-radius:16px;line-height:1.8}.about-dialog::backdrop{background:#000a}.about-dialog h2{font-size:20px}.about-dialog p{margin-top:12px;font-size:14px}.dialog-close{float:left;border:1px solid var(--line);border-radius:8px;background:var(--surface-2);padding:6px 12px;color:var(--text)}
-@media(min-width:901px) and (min-height:600px){.page-shell{height:100dvh}}
-@media(max-width:1100px){.page-shell{padding:0 16px}.site-header{gap:10px}.header-title{font-size:18px}.calendar-line{flex-direction:column;gap:0}.date-divider{display:none}.elevator-card{grid-template-columns:minmax(0,1fr) 230px}.elevator-main{padding:12px 16px 0}.telemetry-item{padding:0 10px}.telemetry-label{font-size:9px}}
-@media(max-width:900px){
-.page-shell{gap:8px}.site-header{display:grid;grid-template-columns:1fr auto;gap:5px 12px;padding:7px 0;min-height:0}.header-title{grid-column:1;grid-row:2;font-size:16px}.clock-block{grid-column:2;grid-row:1}.header-actions{grid-column:2;grid-row:2;justify-content:flex-end}.wall-clock{font-size:25px}.calendar-line{flex-direction:row;font-size:9px}.date-divider{display:inline}.wake-toggle,.icon-button{min-height:30px;height:30px}.icon-button{width:32px}
-main{gap:8px}.elevator-card{grid-template-columns:minmax(0,1fr);flex:1}.elevator-main{padding:10px 16px 0}.arrival-layout{padding:8px 0;grid-template-columns:minmax(0,1fr) 125px}.countdown{font-size:64px}.telemetry-row{padding:8px 0}.route-panel{border-right:0;border-top:1px solid var(--line);padding:8px 16px;display:grid;grid-template-columns:1fr 1fr;gap:5px 16px}.route-heading{grid-column:1 / 3}.route-heading>div{display:flex;align-items:baseline;gap:10px;flex-direction:row-reverse}.route-heading h3{font-size:12px}.route-heading .eyebrow{font-size:9px}.route-badge{font-size:20px;margin:0}.route-group-label{font-size:9px;margin-bottom:3px}.route-stops{justify-content:flex-start;gap:4px}.stop-node{width:25px;height:24px;font-size:10px}.stop-node.double{width:32px}.route-caption{grid-column:1 / 3;font-size:9px}.route-note{grid-column:1 / 3;padding:0;border:0;font-size:9px;line-height:1.4}
-.info-card{padding:10px}.info-card-heading{gap:6px}.info-card h2{font-size:11px}.city-tag{font-size:8px}.shabbat-times strong{font-size:25px}.parasha-name{font-size:21px}.card-bottom{font-size:9px}.weather-main strong{font-size:29px}footer>span{display:none}
+@font-face {
+  font-family: Heebo;
+  src: url("./fonts/Heebo-Variable.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
 }
-@media(min-width:601px) and (max-width:900px) and (min-height:700px){.page-shell{height:100dvh}.elevator-card{grid-template-rows:1fr auto}.arrival-layout{grid-template-columns:minmax(0,1fr) 170px}.countdown{font-size:90px}.lift-doors{height:65px}}
-@media(max-width:600px){
-.page-shell{padding:0 10px;gap:6px}.site-header{gap:4px 8px}.brand{gap:6px}.brand-mark{width:27px;height:27px}.brand-mark .icon{width:18px;height:18px}.brand strong{font-size:14px}.brand-address{font-size:9px}.header-title{font-size:15px}.wall-clock{font-size:22px}.wall-clock span{font-size:11px}.calendar-line{font-size:8px;gap:3px}.header-actions{gap:6px}.wake-toggle{font-size:9px;gap:5px;padding:3px 6px}.icon-button .icon{width:15px;height:15px}
-main{gap:6px}.mode-banner{padding:4px 7px;gap:6px;font-size:9px;line-height:1.4}.mode-tag{font-size:9px;padding:1px 5px}.elevator-card{flex:0 0 auto;border-radius:12px}.elevator-main{padding:8px 10px 0}.section-topline{gap:6px}.section-topline h2{font-size:12px;gap:5px}.section-topline h2>.icon{width:16px;height:16px}.activity-pill{font-size:8px;padding:3px 5px;gap:4px}
-.arrival-layout{grid-template-columns:minmax(0,1fr) 88px;gap:8px;padding:6px 0}.floor-picker{gap:6px;margin-bottom:4px}.floor-picker label{font-size:10px}.select-wrap select{min-width:93px;height:30px;padding:2px 7px 3px 22px;font-size:11px}.select-wrap>span{left:7px;top:1px}.countdown-label{font-size:10px;min-height:0;line-height:1.4}.countdown{font-size:48px;letter-spacing:-2px;margin:1px 0;line-height:1.05}.countdown.message{font-size:24px;letter-spacing:-.7px;line-height:1.35}.arrival-note{font-size:9px;min-height:0;line-height:1.4}.demo-button{font-size:10px;margin-top:4px;padding:1px 6px;gap:5px}
-.elevator-visual{padding:7px 5px 0}.visual-label{font-size:7px;gap:3px;white-space:normal;text-align:center}.lift-display{height:45px;gap:4px}.lift-floor{font-size:35px}.direction-arrow{width:16px;height:20px}.position-description{font-size:8px;min-height:0;line-height:1.4;margin-bottom:5px}.lift-doors,.lift-base{display:none}
-.telemetry-row{padding:6px 0;grid-template-columns:1.15fr 1fr 1fr}.telemetry-item{gap:1px;padding:0 6px}.telemetry-label{font-size:8px;gap:3px;white-space:normal;line-height:1.3}.telemetry-label .icon{display:none}.telemetry-item>strong{font-size:17px;line-height:1.3}.telemetry-item>strong.source-name{font-size:13px;padding:0}.telemetry-detail{font-size:8px;line-height:1.3}
-.route-panel{padding:6px 10px;gap:4px 8px}.route-heading{display:none}.route-group-label{font-size:8px}.route-stops{gap:3px}.stop-node{width:21px;height:21px;font-size:9px;border-radius:4px}.stop-node.double{width:27px}.stop-node small{font-size:7px}.route-caption{font-size:8px;gap:4px;line-height:1.3}.route-note{font-size:8px;line-height:1.3}
-.info-grid{grid-template-columns:1fr 1fr;gap:6px}.info-card{padding:7px 9px;border-radius:10px}.info-card-heading{gap:5px}.small-icon .icon{width:14px;height:14px}.info-card h2{font-size:10px}.city-tag{font-size:8px}.shabbat-card{grid-column:1 / 3;display:grid;grid-template-columns:auto 1fr;gap:2px 8px;align-items:center}.shabbat-card .info-card-heading{flex-wrap:wrap;max-width:92px}.shabbat-card .city-tag{margin:0}.shabbat-times{margin:0;gap:8px}.shabbat-times>div{display:grid;grid-template-columns:auto auto;gap:0 6px;align-items:center}.shabbat-times>div>span{font-size:9px}.shabbat-times strong{font-size:23px;line-height:1.2}.shabbat-times small{grid-column:1 / 3;font-size:8px}.times-rule{height:26px}.shabbat-card .card-bottom{grid-column:1 / 3;padding-top:2px}.card-bottom{font-size:8px;padding-top:3px;line-height:1.3}.parasha-name{font-size:18px;margin-top:3px}.subtle,.weather-card .subtle{font-size:9px;margin-top:2px;line-height:1.3}.weather-main{margin-top:2px;gap:8px}.weather-main strong{font-size:24px}.weather-sun{width:20px;height:20px}.weather-card .city-tag{font-size:7px}.about-button{font-size:10px;padding:0}footer{font-size:9px;padding-bottom:5px;margin-top:auto}.toast{font-size:11px;padding:8px 12px}
+:root {
+  color-scheme: dark;
+  --bg: #1b1e23;
+  --surface: #252a31;
+  --surface-2: #2e333b;
+  --line: #464c56;
+  --text: #f5f2e9;
+  --muted: #bdc2ca;
+  --accent: #e5b76f;
+  --accent-soft: #353023;
+  --connected: #bbd4b3;
+  --disconnected: #edb1a9;
+  font-family: Heebo, "Segoe UI", Arial, sans-serif;
+  font-synthesis: none;
 }
-@media(max-width:360px){.page-shell{padding:0 7px}.brand-mark{display:none}.calendar-line{flex-direction:column;line-height:1.3}.date-divider{display:none}.header-title{font-size:14px}.floor-picker{gap:4px}.floor-picker label{font-size:9px}.route-panel{padding-inline:8px}.stop-node{width:19px;height:20px}.stop-node.double{width:24px}.route-stops{gap:2px}.shabbat-card{column-gap:4px}.shabbat-card .info-card-heading{max-width:74px}}
-@media(min-width:901px) and (max-height:700px){.page-shell{gap:6px}.site-header{min-height:58px}main{gap:6px}.arrival-layout{padding:5px 0}.countdown{font-size:58px}.elevator-main{padding-top:10px}.route-panel{gap:8px}.info-card{padding:8px 12px}.shabbat-times strong{font-size:24px}.parasha-name{font-size:21px}.weather-main strong{font-size:27px}.telemetry-row{padding:6px 0}.card-bottom{padding-top:3px}.lift-doors{height:20px}}
-@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; background: var(--bg); color: var(--text); line-height: 1.5; }
+button, select { font: inherit; color: inherit; }
+button, a, select { -webkit-tap-highlight-color: transparent; }
+button, select { cursor: pointer; }
+button:disabled { cursor: default; opacity: .55; }
+button:focus-visible, a:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+a { color: inherit; text-decoration: none; }
+h1, h2, h3, p { margin: 0; }
+[hidden] { display: none !important; }
+.svg-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
+.icon { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 
-@media(max-width:360px){.site-header{padding-block:3px}.page-shell,main{gap:3px}.info-card{padding-block:5px}.route-panel{padding-block:4px}.calendar-line{font-size:8px}.telemetry-row{padding-block:4px}}
-@media(min-width:901px) and (max-height:700px){.elevator-main{padding:8px 14px 0}.arrival-layout{gap:12px}.floor-picker{margin-bottom:3px}.floor-picker label{font-size:11px}.countdown-label{font-size:11px;min-height:0}.arrival-note{font-size:10px;min-height:0}.countdown{font-size:50px;margin:0}.telemetry-detail{font-size:9px}.telemetry-item>strong{font-size:19px}.route-panel{gap:6px;padding:10px 14px}.route-heading .eyebrow{font-size:10px}.route-group-label{margin-bottom:3px}.route-note{padding-top:5px}.info-card{padding:7px 10px}.shabbat-times{margin-top:3px}.card-bottom{font-size:9px}.mode-banner{padding-block:4px}.site-header{padding-block:5px}}
+/* The forecast is the focus; supporting information sits beside it. */
+.page-shell { max-width: 1440px; min-height: 100dvh; margin: 0 auto; padding: 20px 36px 14px; display: flex; flex-direction: column; gap: 24px; }
+.site-header { display: flex; justify-content: space-between; align-items: center; gap: 20px; min-height: 52px; padding-block: 4px; flex-shrink: 0; }
+.brand { display: inline-flex; align-items: center; }
+.brand-title { font-size: 26px; line-height: 1.2; font-weight: 700; letter-spacing: -.7px; }
+.brand-dot { color: var(--accent); }
+.header-actions { display: flex; gap: 10px; align-items: center; }
+.icon-button { display: flex; justify-content: center; align-items: center; width: 44px; height: 44px; border: 1px solid var(--line); border-radius: 50%; background: transparent; color: var(--muted); }
+.icon-button:hover, .icon-button[aria-expanded="true"] { background: var(--surface); color: var(--accent); }
+.icon-button .icon { width: 19px; height: 19px; }
+.settings-button > span { display: none; }
+main { display: grid; grid-template-columns: minmax(0, 1.85fr) minmax(280px, 1fr); gap: 32px; flex: 1; }
+.elevator-card { background: var(--surface); border-radius: 18px; display: flex; min-width: 0; }
+.elevator-main { padding: 24px 30px 0; display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.section-topline { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.mode-banner { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 10px; color: var(--muted); font-size: 12px; min-width: 0; }
+.mode-tag { color: var(--accent); background: var(--accent-soft); padding: 4px 9px; border-radius: 6px; font-size: 12px; white-space: nowrap; }
+.live-mode .mode-tag { color: var(--connected); background: #2c3930; }
+.disconnected .mode-tag { color: var(--disconnected); background: #403034; }
+.dashboard-clock { margin-inline-start: auto; flex-shrink: 0; }
+.wall-clock { font-size: 23px; font-weight: 500; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.wall-clock span { font-size: 12px; color: var(--muted); margin-left: 4px; }
+.arrival-layout { display: flex; flex-direction: column; gap: 22px; flex: 1; padding-top: 24px; }
+.arrival-content { display: flex; flex-direction: column; justify-content: center; flex: 1; min-width: 0; }
+.floor-picker { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; }
+.floor-picker label { color: var(--muted); font-size: 14px; }
+.select-wrap { position: relative; }
+.select-wrap select { appearance: none; min-width: 142px; height: 44px; padding: 6px 12px 6px 34px; border: 1px solid #756344; border-radius: 8px; background: var(--accent-soft); font-size: 16px; }
+.select-wrap > span { position: absolute; left: 12px; top: 6px; color: var(--accent); pointer-events: none; }
+.countdown-label { font-size: 17px; color: var(--muted); }
+.countdown { align-self: flex-start; font-size: clamp(84px, 10vw, 140px); line-height: 1.12; letter-spacing: -4px; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--accent); margin: 8px 0 12px; }
+.countdown > span { color: var(--accent); }
+.countdown.message { font-size: clamp(28px, 3vw, 44px); line-height: 1.4; letter-spacing: -.8px; }
+.countdown.empty { color: var(--muted); }
+.forecast-message { font-size: clamp(22px, 2.5vw, 32px); color: var(--text); line-height: 1.4; }
+.arrival-note { color: var(--muted); font-size: 14px; margin-top: 10px; }
+.elevator-visual { border-top: 1px solid var(--line); padding: 18px 0; }
+#position-readout { display: flex; align-items: center; gap: 18px; }
+.visual-label { color: var(--muted); font-size: 13px; }
+.live-dash { display: none; }
+.lift-display { display: flex; align-items: center; gap: 8px; direction: ltr; }
+.lift-floor { font-size: 32px; line-height: 1.2; font-weight: 500; font-variant-numeric: tabular-nums; }
+.direction-arrow { width: 20px; height: 24px; color: var(--accent); }
+.direction-arrow.down { transform: rotate(180deg); }
+.direction-arrow.stopped { visibility: hidden; }
+.measurement-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 5px 20px; border-top: 1px solid var(--line); padding: 14px 0; font-size: 12px; color: var(--muted); }
+.measurement-line > span { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 4px; }
+.measurement-line strong { color: var(--text); font-weight: 500; font-variant-numeric: tabular-nums; }
 
-/* Short landscape screens use a side column for the Shabbat information. */
-@media(orientation:landscape) and (min-width:700px) and (max-height:500px){
-.page-shell{padding:0 10px;gap:4px;min-height:100dvh}.site-header{display:flex;min-height:48px;padding:4px 0;gap:10px}.brand-mark{display:none}.brand strong{font-size:14px}.brand-address{font-size:9px}.header-title{font-size:14px}.wall-clock{font-size:22px}.calendar-line{font-size:8px;flex-direction:column;line-height:1.2}.date-divider{display:none}.header-actions{gap:5px}.wake-toggle{font-size:9px;padding:3px 5px;gap:5px}.icon-button{width:30px;height:30px}
-main{display:grid;grid-template-columns:minmax(0,1fr) 210px;grid-template-rows:auto 1fr;gap:4px 6px;flex:1}.mode-banner{grid-column:1 / 3;padding:3px 7px;font-size:9px}.elevator-card{grid-template-columns:1fr;grid-template-rows:1fr auto}.elevator-main{padding:6px 10px 0}.section-topline h2{font-size:12px}.section-topline h2>.icon{width:15px;height:15px}.activity-pill{font-size:8px;padding:2px 5px}.arrival-layout{padding:4px 0;gap:10px;grid-template-columns:1fr 90px}.floor-picker{gap:8px;margin-bottom:2px}.floor-picker label{font-size:10px}.select-wrap select{height:27px;min-width:95px;font-size:11px}.select-wrap>span{top:0}.countdown-label{font-size:9px;min-height:0;line-height:1.3}.countdown{font-size:40px;line-height:1;margin:0}.countdown.message{font-size:22px;line-height:1.2}.arrival-note{font-size:9px;min-height:0;line-height:1.3}.demo-button{font-size:9px;margin-top:2px;padding:0 5px}.elevator-visual{padding:5px 4px 0}.visual-label{font-size:7px}.lift-display{height:39px}.lift-floor{font-size:32px}.position-description{font-size:8px;min-height:0;margin-bottom:4px}.lift-doors,.lift-base{display:none}.telemetry-row{padding:4px 0}.telemetry-label{font-size:8px}.telemetry-label .icon{display:none}.telemetry-item>strong{font-size:16px;line-height:1.2}.telemetry-item>strong.source-name{font-size:13px;padding:0}.telemetry-detail{font-size:8px;line-height:1.2}
-.route-panel{padding:4px 10px;gap:3px 8px}.route-heading{display:none}.route-group-label{font-size:8px;margin-bottom:2px}.route-stops{gap:3px}.stop-node{width:21px;height:20px;font-size:9px}.stop-node.double{width:27px}.route-caption{font-size:8px;line-height:1.2}.route-note{font-size:8px;line-height:1.2}
-.info-grid{display:flex;flex-direction:column;gap:4px}.info-card{padding:5px 8px;flex:1}.info-card h2{font-size:10px}.small-icon .icon{width:13px;height:13px}.city-tag{font-size:8px}.shabbat-times{margin-top:2px;gap:8px}.shabbat-times>div{display:grid;grid-template-columns:auto auto;column-gap:6px;align-items:center}.shabbat-times strong{font-size:20px;line-height:1.1}.shabbat-times small{grid-column:1 / 3;font-size:8px}.shabbat-times>div>span{font-size:8px}.times-rule{height:20px}.card-bottom{font-size:8px;padding-top:2px;line-height:1.2}.parasha-name{font-size:18px;margin-top:2px}.subtle,.weather-card .subtle{font-size:8px;margin-top:1px;line-height:1.2}.weather-main{margin-top:1px}.weather-main strong{font-size:23px}.weather-sun{width:19px;height:19px}footer{padding-bottom:3px;font-size:9px}footer>span{display:none}.about-button{font-size:9px;padding:0}
+/* Calendar and weather use a quiet, unframed column. */
+.info-grid { display: flex; flex-direction: column; gap: 24px; min-width: 0; padding-block: 12px; }
+.info-card { min-width: 0; }
+.info-card-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: var(--muted); }
+.info-card h2 { font-size: 14px; font-weight: 500; }
+.small-icon { display: flex; }
+.small-icon .icon { width: 18px; height: 18px; }
+.city-tag { margin-inline-start: auto; font-size: 12px; }
+.shabbat-content { display: flex; flex-direction: column; gap: 24px; margin-top: 20px; }
+.calendar-line { display: flex; flex-wrap: wrap; gap: 2px 6px; color: var(--muted); font-size: 13px; }
+.parasha-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin-top: 10px; }
+.parasha-name { font-size: 30px; font-weight: 500; letter-spacing: -.5px; line-height: 1.3; }
+#parasha-detail { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.shabbat-times { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding-block: 20px; border-block: 1px solid var(--line); }
+.shabbat-times > div { display: flex; flex-direction: column; }
+.shabbat-times > div > span { color: var(--muted); font-size: 13px; }
+.shabbat-times strong { font-size: 36px; font-weight: 500; font-variant-numeric: tabular-nums; line-height: 1.3; align-self: flex-start; }
+.shabbat-times small { font-size: 12px; color: var(--muted); }
+.times-rule { display: none; }
+.card-bottom { color: var(--muted); font-size: 12px; line-height: 1.5; padding-top: 14px; }
+.card-bottom:empty { display: none; }
+.weather-card { display: grid; grid-template-columns: auto 1fr; gap: 4px 16px; align-items: center; margin-top: auto; padding-top: 16px; }
+.weather-card .info-card-heading { grid-column: 1 / -1; }
+.weather-main { grid-column: 1; grid-row: 2 / 4; }
+.weather-main strong { display: block; font-size: 38px; line-height: 1.5; font-weight: 500; font-variant-numeric: tabular-nums; }
+.weather-card .subtle { grid-column: 2; font-size: 14px; }
+.weather-card .card-bottom { grid-column: 2; padding: 0; }
+
+/* Retain settings keyboard order, route details, and the native dialog. */
+.settings { position: relative; }
+.settings-panel { position: absolute; z-index: 20; inset-inline-end: 0; top: calc(100% + 10px); width: 340px; max-width: calc(100vw - 28px); max-height: calc(100dvh - 100px); overflow: auto; padding: 20px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); box-shadow: 0 14px 40px #0006; }
+.settings-panel h2 { font-size: 18px; font-weight: 600; }
+.settings-panel p { font-size: 12px; color: var(--muted); margin-top: 6px; }
+.demo-button { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 44px; margin-top: 12px; padding: 8px 12px; border: 1px solid #756344; border-radius: 8px; background: var(--accent-soft); color: var(--accent); font-size: 14px; }
+.demo-button[aria-pressed="true"] { background: var(--accent); color: var(--bg); }
+.wake-toggle { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; margin-top: 14px; padding: 10px 0 0; border: 0; border-top: 1px solid var(--line); background: none; text-align: start; color: var(--muted); font-size: 13px; }
+.toggle-track { display: block; width: 32px; height: 20px; padding: 3px; border-radius: 12px; background: var(--line); flex-shrink: 0; }
+.toggle-track > span { display: block; width: 14px; height: 14px; border-radius: 50%; background: var(--text); transition: transform .15s; }
+.wake-toggle[aria-pressed="true"] { color: var(--text); }
+.wake-toggle[aria-pressed="true"] .toggle-track { background: var(--accent); }
+.wake-toggle[aria-pressed="true"] .toggle-track > span { background: var(--bg); transform: translateX(-12px); }
+.route-panel { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; border-top: 1px solid var(--line); padding-top: 14px; }
+.route-heading h3 { font-size: 14px; font-weight: 500; }
+.route-group-label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.route-stops { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 5px; }
+.stop-node { position: relative; display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface-2); color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.stop-node.double { width: 36px; }
+.stop-node small { position: absolute; top: -2px; left: 1px; font-size: 9px; color: var(--accent); }
+.stop-node.selected { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.stop-node.current { box-shadow: 0 0 0 2px #e5b76f33; }
+.route-caption { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; color: var(--muted); font-size: 11px; }
+.route-key { width: 7px; height: 7px; border-radius: 2px; background: var(--accent); }
+.double-stop { margin-inline-start: 6px; color: var(--accent); direction: ltr; }
+footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; border-top: 1px solid var(--line); padding-top: 10px; color: var(--muted); font-size: 12px; flex-shrink: 0; }
+.about-button { border: 0; background: none; padding: 7px 0; font-size: inherit; color: inherit; }
+footer a:hover, .about-button:hover { color: var(--accent); }
+.about-dialog { width: min(640px, calc(100% - 32px)); max-height: 85dvh; padding: 24px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); color: var(--text); line-height: 1.8; }
+.about-dialog::backdrop { background: #000a; }
+.about-dialog h2 { font-size: 22px; }
+.about-dialog p { margin-top: 12px; font-size: 14px; }
+.dialog-close { float: left; min-height: 44px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); }
+.data-attribution a { color: var(--accent); text-decoration: underline; }
+.toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); z-index: 30; max-width: calc(100% - 28px); padding: 10px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); color: var(--text); font-size: 13px; text-align: center; box-shadow: 0 8px 30px #0006; }
+.noscript { padding: 16px; background: var(--accent-soft); color: var(--accent); }
+
+@media (max-width: 1050px) {
+  .page-shell { padding-inline: 24px; gap: 20px; }
+  main { grid-template-columns: minmax(0, 1.6fr) minmax(235px, 1fr); gap: 24px; }
+  .elevator-main { padding-inline: 24px; }
+  .countdown { font-size: 96px; }
+  .shabbat-times { gap: 14px; }
+  .shabbat-times strong { font-size: 32px; }
+  .parasha-name { font-size: 26px; }
 }
 
-.elevator-visual .demo-button{display:flex;justify-content:center;gap:4px;margin:4px auto 6px;line-height:1.3}
-@media(max-width:600px){.elevator-visual .demo-button{font-size:9px;padding:3px 4px}.elevator-visual .demo-button>span:first-child{font-size:13px}.elevator-visual .demo-button>span:last-child{white-space:normal}.shabbat-card .info-card-heading{row-gap:0}}
-
-@media(orientation:landscape) and (min-width:700px) and (max-height:500px){.clock-block{line-height:1.1}.site-header{min-height:44px;padding-block:2px}.route-panel{row-gap:2px}.elevator-visual .demo-button{font-size:8px;margin:2px auto 4px;padding:1px 3px}.elevator-visual .demo-button>span:first-child{font-size:12px}.telemetry-row{padding-block:3px}.info-card{padding-block:4px}}
-
-/* A single-purpose header; time belongs to the elevator, dates to the calendar. */
-.site-header{display:flex;justify-content:space-between;min-height:52px;padding:7px 0;gap:12px}
-.brand-title{font-size:18px;font-weight:650;line-height:1.2;letter-spacing:-.4px}
-.header-actions{margin-inline-start:auto}
-.elevator-status{display:flex;align-items:center;gap:16px}
-.dashboard-clock{line-height:1;white-space:nowrap;text-align:left}
-.dashboard-clock .wall-clock{font-size:25px;line-height:1.1}
-.dashboard-clock .wall-clock span{font-size:11px;padding-left:3px}
-.weekly-summary .calendar-line{display:flex;flex-direction:row;flex-wrap:wrap;gap:0 6px;margin-top:5px;font-size:11px;line-height:1.4}
-.weekly-summary .date-divider{display:inline}
-@media(max-width:600px){.site-header{min-height:44px;padding:5px 0}.brand-title{font-size:15px}.elevator-status{gap:7px}.dashboard-clock .wall-clock{font-size:19px}.dashboard-clock .wall-clock span{font-size:9px}.weekly-summary .calendar-line{font-size:9px;gap:0 4px;margin-top:3px}}
-@media(orientation:landscape) and (min-width:700px) and (max-height:500px){.site-header{min-height:38px;padding:3px 0}.brand-title{font-size:15px}.dashboard-clock .wall-clock{font-size:20px}.elevator-status{gap:10px}.weekly-summary .calendar-line{font-size:8px;margin-top:2px}}
-
-/* One source status, one forecast, and one compact measurement row. */
-.settings{position:relative}
-.settings-button{display:flex;width:auto;padding:0 10px;gap:6px;font-size:11px}
-.settings-button[aria-expanded=true]{color:var(--mint);background:var(--surface-2)}
-.settings-panel{position:absolute;inset-inline-end:0;top:calc(100% + 8px);z-index:20;width:240px;max-width:calc(100vw - 24px);padding:16px;background:var(--surface-2);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 30px #0006}
-.settings-panel h2{font-size:15px;font-weight:600}
-.settings-panel .demo-button{width:100%;justify-content:center;margin:12px 0 0;padding:9px 12px;min-height:40px;background:#9debd414;font-size:13px}
-.settings-panel .demo-button[aria-pressed=true]{background:#9debd426;border-color:var(--mint)}
-.settings-panel .wake-toggle{display:flex;justify-content:space-between;width:100%;height:auto;min-height:40px;margin-top:14px;padding:12px 0 0;gap:10px;border:0;border-top:1px solid var(--line);border-radius:0;font-size:12px;white-space:normal;text-align:start}
-.settings-panel p{font-size:11px;color:var(--muted);margin-top:8px}
-@media(max-width:600px){.settings-button{width:32px;padding:0;justify-content:center}.settings-button>span{display:none}}
-.section-topline{align-items:center;gap:12px}
-.section-topline .mode-banner{flex:1;min-width:0;flex-wrap:wrap;gap:4px 8px;padding:0;border:0;background:none;font-size:12px}
-.mode-banner.disconnected .mode-tag{color:#e5aaa4;border-color:#cf908b66}
-.dashboard-clock{flex-shrink:0;margin-inline-start:auto}
-.measurement-line{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 22px;border-top:1px solid var(--line);padding:12px 0;font-size:12px;color:var(--muted)}
-.measurement-line>span{display:inline-flex;flex-wrap:wrap;align-items:baseline;gap:4px}
-.measurement-line strong{color:var(--text);font-weight:500;font-variant-numeric:tabular-nums}
-.arrival-layout.without-position{grid-template-columns:1fr}
-.forecast-message{font-size:20px;line-height:1.5;color:var(--text);margin-block:12px}
-.arrival-note[hidden]{min-height:0}
-.elevator-visual{border-radius:12px;padding-bottom:8px}
-.elevator-visual.controls-only{background:none;border:0;box-shadow:none;padding:0;overflow:visible}
-.route-heading h2{font-size:16px;font-weight:500}
-.parasha-line{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px;margin-top:8px}
-.parasha-line .parasha-name{margin:0}
-#parasha-detail{font-size:11px;color:var(--muted);white-space:nowrap}
-.card-bottom:empty{display:none}
-@media(max-width:900px){.route-heading h2{font-size:12px}.measurement-line{padding:8px 0;font-size:11px}.forecast-message{font-size:18px}}
-@media(max-width:600px){.section-topline{gap:8px}.section-topline .mode-banner{font-size:10px;gap:3px 6px}.measurement-line{padding:8px 0;font-size:10px;gap:4px 12px}.forecast-message{font-size:15px;margin-block:8px}.visual-label{font-size:9px}.parasha-line{gap:2px 5px;margin-top:5px}.parasha-line .parasha-name{font-size:16px}#parasha-detail{font-size:9px}}
-@media(orientation:landscape) and (min-width:700px) and (max-height:500px){main{grid-template-rows:minmax(0,1fr)}.section-topline .mode-banner{font-size:10px}.measurement-line{font-size:10px;padding:6px 0;gap:3px 12px}.forecast-message{font-size:16px;margin-block:6px}.parasha-line{margin-top:3px;gap:2px 5px}.parasha-line .parasha-name{font-size:16px}#parasha-detail{font-size:9px}}
-
-/* Shared card for the weekly calendar and Shabbat times. */
-.info-grid{grid-template-columns:minmax(0,2.35fr) minmax(0,1fr)}
-.shabbat-card{display:flex;grid-column:auto;gap:0;align-items:stretch}
-.shabbat-card .info-card-heading{max-width:none}
-.shabbat-card .city-tag{margin-inline-start:auto}
-.shabbat-content{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:center;gap:16px;margin-top:6px}
-.weekly-summary{min-width:0}
-.weekly-summary .calendar-line{margin-top:0}
-.shabbat-content .shabbat-times{margin-top:0}
-.shabbat-card #schedule-note{text-align:start}
-@media(max-width:600px){
-.info-grid{grid-template-columns:minmax(0,1fr)}
-.shabbat-content{gap:10px;margin-top:5px}
-.shabbat-content .shabbat-times>div{display:flex;flex-direction:column;align-items:flex-start;gap:0}
-.shabbat-content .parasha-name{font-size:15px}
-.shabbat-card #schedule-note{padding-top:6px}
-.weather-card{display:grid;grid-template-columns:auto auto minmax(0,1fr);align-items:center;gap:2px 12px}
-.weather-card .info-card-heading{grid-column:1;grid-row:1 / 3}
-.weather-card .weather-main{grid-column:2;grid-row:1 / 3;margin:0}
-.weather-card .subtle{grid-column:3;grid-row:1;margin:0}
-.weather-card .card-bottom{grid-column:3;grid-row:2;margin:0;padding:0}
+/* On phones the calendar forms a compact row below the forecast. */
+@media (max-width: 760px) {
+  .page-shell { padding: 12px 16px 8px; gap: 14px; }
+  .site-header { min-height: 44px; }
+  .brand-title { font-size: 23px; }
+  main { display: flex; flex-direction: column; gap: 16px; }
+  .elevator-card { flex: 1; }
+  .elevator-main { padding: 16px 20px 0; }
+  .section-topline { gap: 8px; }
+  .mode-banner { gap: 4px 8px; font-size: 12px; }
+  .mode-tag { padding: 3px 7px; }
+  .wall-clock { font-size: 20px; }
+  .wall-clock span { font-size: 11px; }
+  .arrival-layout { padding-top: 16px; gap: 12px; }
+  .floor-picker { margin-bottom: 16px; gap: 10px; }
+  .floor-picker label { font-size: 13px; }
+  .select-wrap select { min-width: 136px; }
+  .countdown-label { font-size: 15px; }
+  .countdown { font-size: 80px; margin: 4px 0 8px; letter-spacing: -3px; }
+  .countdown.message { font-size: 29px; }
+  .forecast-message { font-size: 24px; }
+  .arrival-note { font-size: 13px; margin-top: 6px; }
+  .elevator-visual { padding: 10px 0; }
+  #position-readout { gap: 14px; }
+  .lift-floor { font-size: 28px; }
+  .visual-label { font-size: 12px; }
+  .measurement-line { font-size: 11px; padding: 9px 0; gap: 4px 14px; }
+  .info-grid { padding: 0 2px; gap: 12px; flex-shrink: 0; }
+  .info-card h2 { font-size: 13px; }
+  .shabbat-content { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 12px; align-items: center; margin-top: 10px; }
+  .calendar-line { font-size: 11px; gap: 0 4px; }
+  .parasha-line { margin-top: 5px; gap: 2px 5px; }
+  .parasha-name { font-size: 22px; }
+  #parasha-detail { font-size: 11px; }
+  .shabbat-times { padding: 0; border: 0; gap: 10px; }
+  .shabbat-times strong { font-size: 27px; }
+  .shabbat-times small { font-size: 11px; }
+  .card-bottom { font-size: 11px; padding-top: 8px; }
+  .weather-card { grid-template-columns: auto auto minmax(0, 1fr); gap: 1px 12px; border-top: 1px solid var(--line); padding-top: 10px; margin: 0; }
+  .weather-card .info-card-heading { grid-column: 1; grid-row: 1 / 3; gap: 5px; }
+  .weather-main { grid-column: 2; grid-row: 1 / 3; }
+  .weather-main strong { font-size: 28px; }
+  .weather-card .subtle { grid-column: 3; grid-row: 1; font-size: 12px; }
+  .weather-card .card-bottom { grid-column: 3; grid-row: 2; }
+  footer { font-size: 11px; padding-top: 3px; }
 }
-@media(orientation:landscape) and (min-width:700px) and (max-height:500px){
-.shabbat-card{flex:2}
-.shabbat-content{grid-template-columns:minmax(0,1fr);gap:8px;margin-top:5px}
-.shabbat-card #schedule-note{padding-top:5px}
+@media (max-width: 600px) and (max-height: 740px) {
+  .page-shell { padding: 8px 12px 6px; gap: 8px; }
+  main { gap: 10px; }
+  .elevator-main { padding: 10px 14px 0; }
+  .mode-banner { font-size: 11px; gap: 2px 6px; }
+  .mode-tag { font-size: 11px; }
+  .arrival-layout { padding-top: 10px; gap: 8px; }
+  .floor-picker { margin-bottom: 10px; }
+  .countdown { font-size: 66px; margin: 2px 0 4px; }
+  .countdown-label { font-size: 14px; }
+  .forecast-message { font-size: 21px; }
+  .elevator-visual { padding: 7px 0; }
+  .lift-floor { font-size: 24px; }
+  .measurement-line { padding: 7px 0; gap: 2px 12px; }
+  .shabbat-content { margin-top: 6px; gap: 8px; }
+  .parasha-name { font-size: 20px; }
+  .shabbat-times strong { font-size: 25px; }
+  .card-bottom { padding-top: 6px; }
+  .weather-card { padding-top: 7px; gap: 1px 8px; }
+  .weather-card .info-card-heading .small-icon { display: none; }
+  .settings-panel { padding: 16px; }
+  .route-panel { gap: 8px; margin-top: 12px; padding-top: 12px; }
+  .route-stops { gap: 4px; }
+  .stop-node { width: 25px; height: 26px; }
+  .stop-node.double { width: 33px; }
+}
+@media (min-width: 761px) and (max-height: 700px) {
+  .page-shell { padding: 12px 24px 8px; gap: 14px; }
+  .elevator-main { padding: 16px 24px 0; }
+  .arrival-layout { padding-top: 16px; gap: 12px; }
+  .floor-picker { margin-bottom: 16px; }
+  .countdown { font-size: 96px; }
+  .elevator-visual { padding: 12px 0; }
+  .info-grid { gap: 18px; padding-block: 6px; }
+  .shabbat-content { gap: 16px; margin-top: 12px; }
+  .shabbat-times { padding-block: 14px; }
 }
 
-/* The route remains available inside settings, leaving the forecast full width. */
-.elevator-card{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr)}
-.settings-panel{width:320px;max-height:calc(100dvh - 80px);overflow:auto}
-.settings-panel .route-panel{display:flex;flex-direction:column;justify-content:flex-start;gap:9px;margin-top:14px;padding:12px 0 0;border:0;border-top:1px solid var(--line);background:none}
-.settings-panel .route-heading{display:block;margin:0}
-.settings-panel .route-heading h3{margin:0;font-size:13px;font-weight:600}
-.settings-panel .route-group{margin:0}
-.settings-panel .route-group-label{margin-bottom:4px;font-size:10px}
-.settings-panel .route-stops{justify-content:flex-start;gap:4px}
-.settings-panel .stop-node{width:24px;height:26px;font-size:11px}
-.settings-panel .stop-node.double{width:31px}
-.settings-panel .route-caption{margin:0;gap:5px;font-size:9px;line-height:1.4}
-@media(orientation:landscape) and (min-width:700px) and (max-height:500px){
-.settings-panel{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:8px 16px;width:560px}
-.settings-panel>h2{grid-column:1 / 3}
-.settings-panel .demo-button{margin-top:0}
-.settings-panel .route-panel{margin:0;padding:0 14px 0 0;border-top:0;border-inline-start:1px solid var(--line)}
+/* In short landscape viewports the estimate and controls share a row. */
+@media (orientation: landscape) and (min-width: 700px) and (max-height: 500px) {
+  .page-shell { padding: 6px 14px; gap: 8px; }
+  .site-header { min-height: 44px; }
+  .brand-title { font-size: 22px; }
+  main { display: grid; grid-template-columns: minmax(0, 1fr) 255px; gap: 18px; }
+  .elevator-main { padding: 10px 16px 0; }
+  .mode-banner { font-size: 11px; }
+  .mode-tag { font-size: 11px; padding: 3px 6px; }
+  .wall-clock { font-size: 20px; }
+  .wall-clock span { font-size: 11px; }
+  .arrival-layout { display: grid; grid-template-columns: minmax(0, 1fr) 106px; align-items: center; gap: 14px; padding: 8px 0; }
+  .arrival-layout.without-position { grid-template-columns: 1fr; }
+  .floor-picker { gap: 8px; margin-bottom: 8px; }
+  .floor-picker label { font-size: 12px; }
+  .select-wrap select { min-width: 128px; }
+  .countdown-label { font-size: 13px; }
+  .countdown { font-size: 58px; margin: 2px 0; letter-spacing: -2px; }
+  .countdown.message, .forecast-message { font-size: 24px; }
+  .arrival-note { font-size: 12px; }
+  .elevator-visual { border-top: 0; border-inline-start: 1px solid var(--line); padding: 8px 12px 8px 0; }
+  #position-readout { flex-direction: column; gap: 8px; text-align: center; }
+  .visual-label { font-size: 11px; }
+  .lift-floor { font-size: 30px; }
+  .measurement-line { font-size: 11px; padding: 7px 0; gap: 2px 12px; }
+  .info-grid { display: flex; gap: 12px; padding: 0; }
+  .info-card h2, .city-tag { font-size: 11px; }
+  .info-card-heading { gap: 5px; }
+  .shabbat-content { display: flex; gap: 8px; margin-top: 8px; }
+  .calendar-line { font-size: 11px; }
+  .parasha-line { margin-top: 4px; }
+  .parasha-name { font-size: 21px; }
+  #parasha-detail { font-size: 11px; }
+  .shabbat-times { border: 0; padding: 0; gap: 14px; }
+  .shabbat-times strong { font-size: 26px; }
+  .shabbat-times small, .shabbat-times > div > span { font-size: 11px; }
+  .card-bottom { font-size: 11px; padding-top: 6px; }
+  .weather-card { grid-template-columns: auto auto minmax(0, 1fr); gap: 0 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+  .weather-card .info-card-heading { grid-column: 1; grid-row: 1 / 3; }
+  .weather-card .small-icon { display: none; }
+  .weather-main { grid-column: 2; grid-row: 1 / 3; }
+  .weather-main strong { font-size: 26px; }
+  .weather-card .subtle { grid-column: 3; grid-row: 1; font-size: 11px; }
+  .weather-card .card-bottom { grid-column: 3; grid-row: 2; font-size: 11px; }
+  footer { font-size: 11px; padding-top: 0; }
+  .about-button { padding-block: 2px; }
+  .settings-panel { display: grid; grid-template-columns: 1fr 1.2fr; gap: 8px 18px; width: 590px; padding: 14px; max-height: calc(100dvh - 70px); }
+  .settings-panel > h2 { grid-column: 1 / -1; font-size: 16px; }
+  .settings-panel p { font-size: 11px; }
+  .settings-panel .demo-button { margin-top: 0; }
+  .settings-panel .route-panel { border-top: 0; border-inline-start: 1px solid var(--line); margin: 0; padding: 0 16px 0 0; gap: 8px; }
+  .route-stops { gap: 4px; }
+  .stop-node { width: 24px; height: 26px; }
+  .stop-node.double { width: 32px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
 }
