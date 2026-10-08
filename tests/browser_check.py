@@ -484,10 +484,45 @@ def main():
         context.close()
         print("PASS: missed detections keep forecasting from the real timestamp; disconnection, uncertain state and waiting suppress forecasts")
 
+        configured = {"mode": "live", "sourceConnected": True, "anchorKind": "departure",
+                      "lastDepartureAt": None, "lastArrivalAt": None,
+                      "lastSeenAt": "2026-10-09T14:59:58Z", "cycleSeconds": 558,
+                      "cycleSource": "configured", "latestCycleSeconds": None,
+                      "measurementStatus": "waiting"}
+        context, page = prepare(320, 640, active=True, live_state=configured)
+        page.locator("#floor-select").select_option("6")
+        expect_connection(page, "connected", "מחובר לגלאי")
+        expect(page.locator("#cycle-label")).to_have_text("מחזור לפי כיול")
+        expect(page.locator("#cycle-duration")).to_have_text("09:18")
+        expect(page.locator("#countdown-label")).to_have_text("ממתינים לזיהוי עזיבה בקומה 7")
+        expect(page.locator("#countdown")).not_to_be_visible()
+        expect(page.locator("#position-readout")).not_to_be_visible()
+        # A candidate/heartbeat alone does not publish an anchor or enable a forecast.
+        configured["lastSeenAt"] = "2026-10-09T15:00:28Z"
+        page.clock.run_for(30_500)
+        expect(page.locator("#countdown")).not_to_be_visible()
+        configured.update(lastDepartureAt="2026-10-09T15:00:40Z", measurementStatus="tracking",
+                          lastSeenAt="2026-10-09T15:00:58Z")
+        page.clock.run_for(30_500)
+        expect(page.locator("#countdown")).to_be_visible()
+        expect(page.locator("#position-readout")).to_be_visible()
+        expect(page.locator("#last-arrival")).to_have_text("18:00:40")
+        expect(page.locator("#cycle-label")).to_have_text("מחזור לפי כיול")
+        expect(page.locator("#cycle-duration")).to_have_text("09:18")
+        page.screenshot(path=str(ARTIFACTS / "small-phone-configured-cycle.png"), full_page=True)
+        # After reconnect, even a saved anchor plus the configured cycle is insufficient.
+        configured.update(measurementStatus="waiting", lastSeenAt="2026-10-09T15:01:28Z")
+        page.clock.run_for(30_500)
+        expect(page.locator("#countdown")).not_to_be_visible()
+        expect(page.locator("#position-readout")).not_to_be_visible()
+        expect(page.locator("#cycle-duration")).to_have_text("09:18")
+        context.close()
+        print("PASS: configured cycle is displayed while waiting; only a confirmed departure enables forecasts")
+
         expiring = {"mode": "live", "sourceConnected": True, "anchorKind": "departure",
                     "lastDepartureAt": "2026-10-09T13:00:20Z", "lastArrivalAt": None,
                     "lastSeenAt": "2026-10-09T14:59:58Z", "cycleSeconds": 560,
-                    "cycleSource": "default", "measurementStatus": "tracking"}
+                    "cycleSource": "configured", "measurementStatus": "tracking"}
         context, page = prepare(320, 640, active=True, live_state=expiring)
         page.locator("#floor-select").select_option("6")
         expect(page.locator("#countdown")).to_be_visible()

@@ -4,7 +4,7 @@ import socket
 import threading
 import unittest
 from datetime import timedelta
-from http.client import HTTPConnection
+from http.client import HTTPResponse
 from unittest.mock import Mock, patch
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
@@ -41,14 +41,19 @@ class ServerTests(unittest.TestCase):
             urlopen(request)
         self.assertEqual(caught.exception.code, 401)
 
-    def test_valid_authenticated_observation(self):
+    def test_authenticated_observation_requires_configured_cycle(self):
         event = {"deviceId": "begin17-floor7", "eventId": "http-test", "floor": 7, "eventKind": "departure",
                  "observedAt": iso(utc_now()), "cycleSeconds": 570}
         request = Request(self.base + "/api/observations", data=json.dumps(event).encode(),
                           headers={"Authorization": "Bearer test-only-do-not-use-in-production",
                                    "Content-Type": "application/json"}, method="POST")
         with urlopen(request) as response:
-            self.assertTrue(json.load(response)["accepted"])
+            self.assertEqual(json.load(response), {"accepted": False, "reason": "missing_cycle_config"})
+        with urlopen(self.base + "/api/state") as response:
+            state = json.load(response)
+        self.assertIsNone(state["lastDepartureAt"])
+        self.assertIsNone(state["cycleSeconds"])
+        self.assertIsNone(state["cycleSource"])
 
     def test_python_source_and_environment_are_not_public(self):
         for path in ("/run_metrics_server.py", "/.env", "/../.env", "/elevator/state.py",
@@ -83,42 +88,76 @@ class PublicServerTests(unittest.TestCase):
             server.server_close()
 
     def request(self, server, path, *, method="GET", payload=None, headers=None):
-        connection = HTTPConnection("127.0.0.1", server.server_port, timeout=3)
-        try:
-            body = json.dumps(payload).encode() if payload is not None else None
-            connection.request(method, path, body=body, headers=headers or {})
-            response = connection.getresponse()
-            return response.status, response.headers, response.read()
-        finally:
-            connection.close()
+        body = json.dumps(payload).encode() if payload is not None else b""
+        request_headers = {"Host": f"127.0.0.1:{server.server_port}", "Connection": "close", **(headers or {})}
+        if payload is not None:
+            request_headers["Content-Length"] = str(len(body))
+        head = f"{method} {path} HTTP/1.1\r\n"
+        head += "".join(f"{name}: {value}\r\n" for name, value in request_headers.items()) + "\r\n"
+        with socket.create_connection(("127.0.0.1", server.server_port), timeout=3) as connection:
+            # Send each small request together: an HTTP/1.0 rejection can close
+            # before a separately sent body, causing a Windows socket reset.
+            connection.sendall(head.encode("latin-1") + body)
+            with HTTPResponse(connection, method=method) as response:
+                response.begin()
+                return response.status, response.headers, response.read()
 
     def test_local_events_and_heartbeat_are_visible_publicly(self):
-        observed = utc_now() - timedelta(seconds=20)
+        observed = utc_now()
         event = {"deviceId": "begin17-floor7", "eventId": "shared-http-event", "floor": 7, "eventKind": "departure",
-                 "observedAt": iso(observed), "cycleSeconds": 570}
+                 "observedAt": iso(observed), "cycleSeconds": 900}
         headers = {"Authorization": "Bearer " + self.token, "Content-Type": "application/json"}
-        status, _, body = self.request(self.local, "/api/observations", method="POST",
-                                       payload=event, headers=headers)
-        self.assertEqual(status, 200)
-        self.assertTrue(json.loads(body)["accepted"])
-        status, public_headers, body = self.request(self.public, "/api/state")
-        self.assertEqual(status, 200)
-        self.assertEqual(public_headers["Cache-Control"], "no-store")
-        state = json.loads(body)
-        self.assertEqual(state["lastDepartureAt"], iso(observed))
-        self.assertIsNone(state["lastArrivalAt"])
-        self.assertEqual(state["cycleSeconds"], 570)
+        with patch.object(self.local.store, "clock", return_value=observed) as clock:
+            status, _, body = self.request(self.local, "/api/observations", method="POST",
+                                           payload=event, headers=headers)
+            self.assertEqual(status, 200)
+            self.assertEqual(json.loads(body), {"accepted": False, "reason": "awaiting_cycle_match"})
+            status, _, body = self.request(self.public, "/api/state")
+            waiting = json.loads(body)
+            self.assertIsNone(waiting["lastDepartureAt"])
+            self.assertEqual(waiting["measurementStatus"], "waiting")
+            self.assertEqual(waiting["cycleSeconds"], 570)
+            self.assertEqual(waiting["cycleSource"], "configured")
 
-        seen = utc_now() - timedelta(seconds=5)
-        status, _, _ = self.request(self.local, "/api/heartbeat", method="POST", headers=headers,
-                                    payload={"deviceId": "begin17-floor7", "observedAt": iso(seen)})
-        self.assertEqual(status, 200)
-        status, _, body = self.request(self.public, "/api/state")
-        state = json.loads(body)
-        self.assertEqual(status, 200)
-        self.assertEqual(state["lastSeenAt"], iso(seen))
-        self.assertEqual(state["lastDepartureAt"], iso(observed))
-        self.assertTrue(state["sourceConnected"])
+            for index, interval in enumerate((560, 580), start=1):
+                for elapsed in range(60, interval, 60):
+                    clock.return_value = observed + timedelta(seconds=elapsed)
+                    status, _, _ = self.request(self.local, "/api/heartbeat", method="POST", headers=headers,
+                                                payload={"deviceId": "begin17-floor7",
+                                                         "observedAt": iso(clock.return_value)})
+                    self.assertEqual(status, 200)
+                observed += timedelta(seconds=interval)
+                clock.return_value = observed
+                event.update(eventId=f"shared-http-event-{index}", observedAt=iso(observed))
+                status, _, body = self.request(self.local, "/api/observations", method="POST",
+                                               payload=event, headers=headers)
+                self.assertEqual(status, 200)
+                self.assertTrue(json.loads(body)["accepted"])
+                status, _, body = self.request(self.public, "/api/state")
+                current = json.loads(body)
+                self.assertEqual(current["lastDepartureAt"], iso(observed))
+                self.assertEqual(current["cycleSeconds"], 570)
+                self.assertEqual(current["cycleSource"], "configured")
+                self.assertIsNone(current["latestCycleSeconds"])
+            status, public_headers, body = self.request(self.public, "/api/state")
+            self.assertEqual(status, 200)
+            self.assertEqual(public_headers["Cache-Control"], "no-store")
+            state = json.loads(body)
+            self.assertEqual(state["lastDepartureAt"], iso(observed))
+            self.assertIsNone(state["lastArrivalAt"])
+            self.assertEqual(state["cycleSeconds"], 570)
+
+            seen = observed + timedelta(seconds=15)
+            clock.return_value = seen
+            status, _, _ = self.request(self.local, "/api/heartbeat", method="POST", headers=headers,
+                                        payload={"deviceId": "begin17-floor7", "observedAt": iso(seen)})
+            self.assertEqual(status, 200)
+            status, _, body = self.request(self.public, "/api/state")
+            state = json.loads(body)
+            self.assertEqual(status, 200)
+            self.assertEqual(state["lastSeenAt"], iso(seen))
+            self.assertEqual(state["lastDepartureAt"], iso(observed))
+            self.assertTrue(state["sourceConnected"])
 
     def test_public_methods_cannot_write_even_with_valid_token(self):
         before = self.local.store.snapshot()
@@ -191,6 +230,30 @@ class PublicServerTests(unittest.TestCase):
 
 
 class ServerLifecycleTests(unittest.TestCase):
+    def test_runtime_cycle_tolerance_controls_candidate_acceptance(self):
+        for tolerance, accepted in ((None, True), (10, False)):
+            with self.subTest(tolerance=tolerance):
+                runtime = {"defaultCycleSeconds": 570}
+                if tolerance is not None:
+                    runtime["cycleTolerancePercent"] = tolerance
+                server = create_server(port=0, runtime_config=runtime)
+                try:
+                    observed = utc_now()
+                    event = {"deviceId": server.store.device_id, "eventId": "first", "floor": 7,
+                             "eventKind": "departure", "observedAt": iso(observed)}
+                    with patch.object(server.store, "clock", return_value=observed) as clock:
+                        self.assertEqual(server.store.observe(event),
+                                         {"accepted": False, "reason": "awaiting_cycle_match"})
+                        for elapsed in range(50, 501, 50):
+                            clock.return_value = observed + timedelta(seconds=elapsed)
+                            server.store.heartbeat({"deviceId": server.store.device_id,
+                                                    "observedAt": iso(clock.return_value)})
+                        event.update(eventId="second", observedAt=iso(clock.return_value))
+                        self.assertEqual(server.store.observe(event)["accepted"], accepted)
+                        self.assertEqual(server.store.snapshot()["cycleSeconds"], 570)
+                finally:
+                    server.server_close()
+
     def test_live_diagnostics_start_automatically_and_close_on_shutdown(self):
         runtime = {"floor": 7, "defaultCycleSeconds": 560, "detector": {"frequencyHighHz": 3800}}
         for extra, recording in (([], True), (["--no-recording"], False)):

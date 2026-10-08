@@ -21,6 +21,7 @@ RATE = 8000
 def config():
     return {
         "schemaVersion": 1, "eventKind": "departure", "floor": 7, "defaultCycleSeconds": 570,
+        "cycleTolerancePercent": 15,
         "detector": {
             "profile": "band_level_snr_v1", "channel": 0,
             "frequencyLowHz": 900, "frequencyHighHz": 1100,

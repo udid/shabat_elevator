@@ -76,7 +76,7 @@ test('last segment returns to the anchor at the cycle boundary', () => {
   assert.equal(estimateState(profile, anchorMs, at(570)).floor, 7);
 });
 
-test('measured cycle override stretches the full profile consistently', () => {
+test('configured cycle override stretches the full profile consistently', () => {
   const target = profile.stops[1];
   const override = 660;
   const expectedArrival = target.arrivalSeconds * override / 570;
@@ -138,26 +138,40 @@ test('departure profile wraps into the anchor dwell and scales without losing th
 const departureSnapshot = (overrides = {}) => ({
   mode: 'live', anchorKind: 'departure', sourceConnected: true,
   lastDepartureAt: new Date(anchorMs).toISOString(), lastArrivalAt: null,
-  lastSeenAt: new Date(at(1)).toISOString(), cycleSeconds: 570,
-  cycleSource: 'default', measurementStatus: 'tracking', calibrated: false,
+  lastSeenAt: new Date(at(1)).toISOString(), cycleSeconds: 558,
+  cycleSource: 'configured', latestCycleSeconds: null, measurementStatus: 'tracking', calibrated: false,
   ...overrides,
 });
 const connected = { reachable: true, staleAfterSeconds: 90 };
 
-test('first real departure uses the default cycle without claiming a measured cycle', () => {
+test('a confirmed departure forecasts using the configured cycle', () => {
   const live = liveTiming(departureSnapshot(), at(2), connected);
   assert.equal(live.usable, true);
   assert.equal(live.anchorKind, 'departure');
   assert.equal(live.anchor, anchorMs);
-  assert.equal(live.cycleSource, 'default');
-  assert.equal(live.cycle, 570);
+  assert.equal(live.cycleSource, 'configured');
+  assert.equal(live.cycle, 558);
+});
+
+test('a configured cycle alone cannot start forecasting before a confirmed departure', () => {
   const waiting = liveTiming(departureSnapshot({ lastDepartureAt: null, measurementStatus: 'waiting' }), at(2), connected);
   assert.equal(waiting.usable, false);
   assert.equal(waiting.anchor, null);
-  assert.equal(waiting.cycleSource, 'default');
-  const measured = liveTiming(departureSnapshot({ cycleSource: 'measured', cycleSeconds: 600 }), at(2), connected);
-  assert.equal(measured.usable, true);
-  assert.equal(measured.cycleSource, 'measured');
+  assert.equal(waiting.cycleSource, 'configured');
+  assert.equal(waiting.cycle, 558);
+  assert.equal(waiting.connected, true);
+  const restored = liveTiming(departureSnapshot({ measurementStatus: 'waiting' }), at(2), connected);
+  assert.equal(restored.usable, false);
+  assert.equal(restored.anchor, anchorMs);
+});
+
+test('older default and measured cycle sources remain readable during deployment', () => {
+  for (const cycleSource of ['default', 'measured']) {
+    const live = liveTiming(departureSnapshot({ cycleSource, cycleSeconds: 600 }), at(2), connected);
+    assert.equal(live.usable, true);
+    assert.equal(live.cycleSource, cycleSource);
+    assert.equal(live.cycle, 600);
+  }
 });
 
 test('missed detections keep forecasting repeated cycles from the unchanged real departure', () => {
@@ -167,7 +181,7 @@ test('missed detections keep forecasting repeated cycles from the unchanged real
     for (const phase of [0, 3]) {
       const elapsed = missedCycles * cycle + phase;
       const snapshot = Object.freeze(departureSnapshot({
-        cycleSource: 'measured', cycleSeconds: cycle,
+        cycleSeconds: cycle,
         lastSeenAt: new Date(at(elapsed)).toISOString(),
       }));
       const before = { ...snapshot };
@@ -198,7 +212,7 @@ test('two-hour detection expiry suppresses forecasting even before the next API 
     assert.equal(live.connected, true);
     assert.equal(live.usable, elapsed < 7200);
     assert.equal(live.anchor, anchorMs);
-    assert.equal(live.cycle, 570);
+    assert.equal(live.cycle, 558);
   }
   const recovered = liveTiming(departureSnapshot({
     lastDepartureAt: new Date(at(7500)).toISOString(),

@@ -4,17 +4,26 @@ from datetime import timedelta
 from unittest.mock import Mock, patch
 
 from elevator.detector_service import DetectorSupervisor
-from elevator.state import ObservationStore, utc_now
+from elevator.state import ObservationStore, iso, utc_now
 
 
 class DetectorServiceTests(unittest.TestCase):
-    def test_capture_callbacks_publish_real_departure_and_bootstrap_cycle(self):
-        store = ObservationStore(default_cycle_seconds=560)
+    def test_capture_callbacks_wait_for_cycle_match_then_publish_fixed_cycle(self):
+        now = utc_now()
+        store = ObservationStore(default_cycle_seconds=560, clock=lambda: now)
         ready = threading.Event()
+        candidates = []
 
         def listener(config, event, heartbeat, stop, **kwargs):
-            heartbeat(utc_now())
-            event(utc_now())
+            nonlocal now
+            heartbeat(now)
+            event(now)
+            candidates.append(store.snapshot())
+            for _ in range(11):
+                now += timedelta(seconds=50)
+                heartbeat(now)
+            now += timedelta(seconds=30)
+            event(now)
             ready.set()
             stop.wait(2)
 
@@ -22,12 +31,15 @@ class DetectorServiceTests(unittest.TestCase):
         try:
             service.start()
             self.assertTrue(ready.wait(2))
+            self.assertIsNone(candidates[0]["lastDepartureAt"])
+            self.assertEqual(candidates[0]["measurementStatus"], "waiting")
             state = store.snapshot()
             self.assertEqual(state["anchorKind"], "departure")
-            self.assertIsNotNone(state["lastDepartureAt"])
+            self.assertEqual(state["lastDepartureAt"], iso(now))
             self.assertIsNone(state["lastArrivalAt"])
             self.assertEqual(state["cycleSeconds"], 560)
-            self.assertEqual(state["cycleSource"], "default")
+            self.assertEqual(state["cycleSource"], "configured")
+            self.assertIsNone(state["latestCycleSeconds"])
             self.assertTrue(state["sourceConnected"])
         finally:
             service.stop()
@@ -76,12 +88,18 @@ class DetectorServiceTests(unittest.TestCase):
         self.assertFalse(service.thread.is_alive())
 
     def test_monitor_mode_tests_audio_without_inventing_elevator_observations(self):
-        store = ObservationStore(default_cycle_seconds=560)
+        now = utc_now()
+        store = ObservationStore(default_cycle_seconds=560, clock=lambda: now)
         ready = threading.Event()
 
         def listener(config, event, heartbeat, stop, **kwargs):
-            heartbeat(utc_now())
-            event(utc_now())
+            nonlocal now
+            heartbeat(now)
+            event(now)
+            for _ in range(10):
+                now += timedelta(seconds=56)
+                heartbeat(now)
+            event(now)
             ready.set()
             stop.wait(2)
 
@@ -92,7 +110,9 @@ class DetectorServiceTests(unittest.TestCase):
             state = store.snapshot()
             self.assertTrue(state["sourceConnected"])
             self.assertIsNone(state["lastDepartureAt"])
-            self.assertIsNone(state["cycleSeconds"])
+            self.assertEqual(state["cycleSeconds"], 560)
+            self.assertEqual(state["cycleSource"], "configured")
+            self.assertIsNone(state["latestCycleSeconds"])
             self.assertEqual(state["measurementStatus"], "waiting")
         finally:
             service.stop()
@@ -103,7 +123,7 @@ class DetectorServiceTests(unittest.TestCase):
         diagnostics = Mock()
         diagnostics.status.return_value = {"recording": True}
         service = DetectorSupervisor(store, {"floor": 7}, diagnostics=diagnostics)
-        with patch("elevator.detector_service.time.monotonic", side_effect=[10, 15, 75]):
+        with patch("elevator.detector_service.time.monotonic", side_effect=[10, 15, 75, 135]):
             service._heartbeat(now)
             service._observe(now)
             now += timedelta(seconds=5)
@@ -115,27 +135,44 @@ class DetectorServiceTests(unittest.TestCase):
             now += timedelta(seconds=5)
             service._heartbeat(now)
             service._observe(now)
+            for _ in range(11):
+                now += timedelta(seconds=50)
+                store.heartbeat({"deviceId": store.device_id, "observedAt": iso(now)})
+            now += timedelta(seconds=30)
+            service._heartbeat(now)
+            service._observe(now)
         events = diagnostics.event.call_args_list
         decisions = [call.kwargs for call in events if call.args[0] == "observation_decision"]
-        self.assertEqual(len(decisions), 3)
+        self.assertEqual(len(decisions), 4)
         self.assertIsNone(decisions[0]["intervalSeconds"])
-        self.assertEqual(decisions[1]["result"], {"accepted": False, "reason": "same_stop"})
-        self.assertEqual(decisions[2]["intervalSeconds"], 560)
-        self.assertEqual(decisions[2]["state"]["latestCycleSeconds"], 560)
-        self.assertEqual(decisions[2]["state"]["cycleSource"], "measured")
-        self.assertEqual(len([c for c in events if c.args[0] == "detector_health"]), 2)
+        for decision in decisions[:2]:
+            self.assertEqual(decision["result"], {"accepted": False, "reason": "awaiting_cycle_match"})
+        self.assertIsNone(decisions[2]["intervalSeconds"])
+        self.assertTrue(decisions[2]["result"]["accepted"])
+        self.assertEqual(decisions[3]["intervalSeconds"], 580)
+        self.assertTrue(decisions[3]["result"]["accepted"])
+        self.assertEqual(decisions[3]["state"]["cycleSeconds"], 560)
+        self.assertIsNone(decisions[3]["state"]["latestCycleSeconds"])
+        self.assertEqual(decisions[3]["state"]["cycleSource"], "configured")
+        self.assertEqual(len([c for c in events if c.args[0] == "detector_health"]), 3)
 
     def test_broken_diagnostic_sink_does_not_interrupt_reporting(self):
-        store = ObservationStore(default_cycle_seconds=560)
+        now = utc_now()
+        store = ObservationStore(default_cycle_seconds=560, clock=lambda: now)
         diagnostics = Mock()
         diagnostics.event.side_effect = OSError("Disk unavailable")
         diagnostics.status.side_effect = OSError("Disk unavailable")
         service = DetectorSupervisor(store, {"floor": 7}, diagnostics=diagnostics)
         with patch("elevator.detector_service.LOG"):
-            service._heartbeat(utc_now())
-            service._observe(utc_now())
+            service._heartbeat(now)
+            service._observe(now)
+            self.assertIsNone(store.snapshot()["lastDepartureAt"])
+            for _ in range(10):
+                now += timedelta(seconds=56)
+                service._heartbeat(now)
+            service._observe(now)
         self.assertTrue(store.snapshot()["sourceConnected"])
-        self.assertIsNotNone(store.snapshot()["lastDepartureAt"])
+        self.assertEqual(store.snapshot()["lastDepartureAt"], iso(now))
 
 
 if __name__ == "__main__":

@@ -12,7 +12,7 @@ from unittest.mock import patch
 
 import run_calibrate_audio
 from run_calibrate_audio import CalibrationInputError
-from elevator.runtime_config import build_runtime_config
+from elevator.runtime_config import build_runtime_config, validate_runtime_config
 
 
 def ready_report():
@@ -64,11 +64,13 @@ class RuntimeConfigurationTests(unittest.TestCase):
         report = ready_report()
         original = copy.deepcopy(report)
         runtime = build_runtime_config(report)
-        self.assertEqual(set(runtime), {"schemaVersion", "eventKind", "floor", "defaultCycleSeconds", "detector"})
+        self.assertEqual(set(runtime), {"schemaVersion", "eventKind", "floor", "defaultCycleSeconds",
+                                        "cycleTolerancePercent", "detector"})
         self.assertEqual(runtime["schemaVersion"], 1)
         self.assertEqual(runtime["eventKind"], "departure")
         self.assertEqual(runtime["floor"], 7)
         self.assertEqual(runtime["defaultCycleSeconds"], report["periodSeconds"])
+        self.assertEqual(runtime["cycleTolerancePercent"], 15)
         self.assertEqual(set(runtime["detector"]), DETECTOR_FIELDS)
         self.assertEqual(runtime["detector"]["profile"], "band_level_snr_v1")
         for key in DETECTOR_FIELDS - {"profile"}:
@@ -79,6 +81,39 @@ class RuntimeConfigurationTests(unittest.TestCase):
             self.assertNotIn(forbidden, serialized)
         self.assertLess(len(serialized), 3000)
         self.assertEqual(report, original, "Export must not remove fields from the detailed report")
+
+    def test_older_runtime_document_defaults_tolerance_without_mutating_input(self):
+        document = build_runtime_config(ready_report())
+        del document["cycleTolerancePercent"]
+        original = copy.deepcopy(document)
+        validated = validate_runtime_config(document)
+        self.assertEqual(validated["schemaVersion"], 1)
+        self.assertEqual(validated["cycleTolerancePercent"], 15)
+        self.assertEqual(validated["defaultCycleSeconds"], document["defaultCycleSeconds"])
+        self.assertEqual(document, original)
+
+    def test_custom_tolerance_is_preserved_by_export_and_compact_validation(self):
+        for tolerance in (0, 7.5, 15, 99.999):
+            with self.subTest(tolerance=tolerance):
+                report = ready_report()
+                report["cycleTolerancePercent"] = tolerance
+                original = copy.deepcopy(report)
+                runtime = build_runtime_config(report)
+                self.assertEqual(runtime["cycleTolerancePercent"], tolerance)
+                self.assertEqual(validate_runtime_config(runtime), runtime)
+                self.assertEqual(report, original)
+
+    def test_invalid_tolerance_is_rejected_by_export_and_compact_validation(self):
+        for tolerance in (None, True, False, "15", -0.001, 100, 101, 10**1000, math.nan, math.inf, -math.inf):
+            with self.subTest(tolerance=tolerance):
+                report = ready_report()
+                report["cycleTolerancePercent"] = tolerance
+                with self.assertRaisesRegex(ValueError, "cycleTolerancePercent"):
+                    build_runtime_config(report)
+                runtime = build_runtime_config(ready_report())
+                runtime["cycleTolerancePercent"] = tolerance
+                with self.assertRaisesRegex(ValueError, "cycleTolerancePercent"):
+                    validate_runtime_config(runtime)
 
     def test_review_and_insufficient_reports_never_build_active_runtime_configuration(self):
         for status in ("review", "insufficient_evidence", "failed", None):

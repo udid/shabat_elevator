@@ -166,6 +166,7 @@ def create_server(host="127.0.0.1", port=8000, *, live=False, state_path=None, t
         store = ObservationStore(state_path, device_id=os.getenv("DEVICE_ID", "begin17-floor7"),
                                  stale_after=config["staleAfterSeconds"], arrival_grace=config["arrivalGraceSeconds"],
                                  default_cycle_seconds=runtime_config["defaultCycleSeconds"] if runtime_config else None,
+                                 cycle_tolerance_percent=runtime_config.get("cycleTolerancePercent", 15) if runtime_config else 15,
                                  event_kind="departure")
     handler_class = PublicDashboardHandler if public else DashboardHandler
     handler = partial(handler_class, store=store, config=config,

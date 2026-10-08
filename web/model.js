@@ -143,7 +143,7 @@ export function liveTiming(live, nowMs, { reachable = false, staleAfterSeconds =
   const observed = timestamp(anchorKind === 'departure' ? live?.lastDepartureAt : live?.lastArrivalAt);
   const anchor = kindValid && observed !== null && observed <= nowMs ? observed : null;
   const seen = timestamp(live?.lastSeenAt);
-  const cycleSource = live?.cycleSource === 'default' || live?.cycleSource === 'measured' ? live.cycleSource : null;
+  const cycleSource = ['configured', 'default', 'measured'].includes(live?.cycleSource) ? live.cycleSource : null;
   const legacyArrival = live?.anchorKind === undefined && anchorKind === 'arrival';
   const cycleValid = typeof live?.cycleSeconds === 'number' && Number.isFinite(live.cycleSeconds)
     && live.cycleSeconds > 300 && live.cycleSeconds < 1800 && (cycleSource !== null || legacyArrival);

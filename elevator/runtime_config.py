@@ -6,13 +6,12 @@ calibration v2: normalized PCM, symmetric Hann windows, FFT size equal to the
 next power of two above sample_rate * .064, half-window hops, spectral power
 normalized by nfft * sum(window**2), and p90 active-frame band power per event.
 
-defaultCycleSeconds is a fallback duration only when no measured history exists,
-never an observation timestamp or a sample. The live cycle is the median of up
-to five recent valid intervals, retained across days and restarts. A fresh real
-departure establishes phase after startup or reconnection. With fresh heartbeats,
-forecasting continues past the expected departure without synthesizing an event.
-An interval above 1.5 times the recent median (or the fallback) is excluded from
-cycle history, while its real departure immediately reanchors the forecast.
+defaultCycleSeconds is the fixed configured cycle for periodic confirmation and
+live forecasts, never an observation timestamp or a measured sample. A sound
+that passes the acoustic filters needs an earlier qualifying sound one or two
+configured cycles away, within cycleTolerancePercent of that interval. Older
+schema-1 documents without the tolerance setting use 15 percent. Heartbeats
+and elapsed cycles do not synthesize departure events or renew a detection.
 """
 
 from __future__ import annotations
@@ -42,6 +41,10 @@ def build_runtime_config(report):
     cycle = _number(report, "periodSeconds")
     if not 300 < cycle < 1800:
         raise ValueError("The default cycle must be strictly between 300 and 1800 seconds")
+    tolerance = report.get("cycleTolerancePercent", 15)
+    if (type(tolerance) not in (int, float) or not 0 <= tolerance < 100
+            or not math.isfinite(tolerance)):
+        raise ValueError("cycleTolerancePercent must be a finite number from 0 inclusive to 100 exclusive")
     parameters = report.get("parameters")
     if not isinstance(parameters, dict) or parameters.get("algorithm") != "hann_spectral_band_snr_level_v2":
         raise ValueError("Unsupported calibration algorithm or missing parameters")
@@ -68,7 +71,8 @@ def build_runtime_config(report):
     if detector["mergeGapSeconds"] < 0 or detector["rearmSeconds"] <= 0:
         raise ValueError("Merge gap must be nonnegative and rearm time positive")
     return {"schemaVersion": 1, "eventKind": "departure", "floor": 7,
-            "defaultCycleSeconds": cycle, "detector": detector}
+            "defaultCycleSeconds": cycle, "cycleTolerancePercent": tolerance,
+            "detector": detector}
 
 
 def validate_runtime_config(value):
@@ -89,5 +93,6 @@ def validate_runtime_config(value):
         "eventKind": value.get("eventKind"),
         "floor": value.get("floor"),
         "periodSeconds": value.get("defaultCycleSeconds"),
+        "cycleTolerancePercent": value.get("cycleTolerancePercent", 15),
         "parameters": {**detector, "algorithm": "hann_spectral_band_snr_level_v2"},
     })
