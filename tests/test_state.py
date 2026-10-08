@@ -73,18 +73,53 @@ class ObservationTests(unittest.TestCase):
         self.assertEqual(self.store.observe(self.event("another-sound"))["reason"], "same_stop")
         self.assertEqual(self.store.snapshot()["lastDepartureAt"], original)
 
-    def test_missed_departure_preserves_cycle_and_requires_valid_interval(self):
+    def test_missed_departure_preserves_cycle_and_reanchors_immediately(self):
         self.tracking()
         self.advance_connected(1140)
+        self.assertEqual(self.store.snapshot()["measurementStatus"], "tracking")
         self.store.observe(self.event("after-missed-stop"))
         state = self.store.snapshot()
         self.assertEqual(state["cycleSeconds"], 570)
-        self.assertEqual(state["measurementStatus"], "uncertain")
+        self.assertEqual(state["measurementStatus"], "tracking")
+        self.assertEqual(state["lastDepartureAt"], iso(self.now))
+        self.assertEqual(self.store.cycles, [570])
         self.assertIsNotNone(state["message"])
         self.advance_connected(570)
         self.store.observe(self.event("recovered"))
         self.assertEqual(self.store.snapshot()["measurementStatus"], "tracking")
         self.assertIsNone(self.store.snapshot()["message"])
+
+    def test_first_missed_departure_uses_calibration_until_a_normal_interval(self):
+        self.store = ObservationStore(clock=lambda: self.now, default_cycle_seconds=560)
+        self.store.observe(self.event())
+        self.advance_connected(1028.8)
+        self.assertTrue(self.store.observe(self.event("after-missed-stop"))["accepted"])
+        state = self.store.snapshot()
+        self.assertEqual((state["cycleSeconds"], state["cycleSource"]), (560, "default"))
+        self.assertEqual(state["measurementStatus"], "tracking")
+        self.assertEqual(self.store.cycles, [])
+        self.advance_connected(514.4)
+        self.assertTrue(self.store.observe(self.event("next-lap"))["accepted"])
+        state = self.store.snapshot()
+        self.assertEqual((state["cycleSeconds"], state["cycleSource"]), (514.4, "measured"))
+        self.assertEqual(state["measurementStatus"], "tracking")
+
+    def test_cycle_is_rolling_median_of_five_recent_valid_intervals(self):
+        self.store = ObservationStore(clock=lambda: self.now, default_cycle_seconds=560)
+        self.store.observe(self.event())
+        for index, interval in enumerate([600, 580, 620, 590, 610, 640]):
+            self.advance_connected(interval)
+            self.assertTrue(self.store.observe(self.event(f"lap-{index}"))["accepted"])
+        self.assertEqual(self.store.cycles, [580, 620, 590, 610, 640])
+        self.assertEqual(self.store.snapshot()["cycleSeconds"], 610)
+        self.assertEqual(self.store.snapshot()["latestCycleSeconds"], 640)
+        self.advance_connected(1220)
+        self.store.observe(self.event("missed-lap"))
+        self.assertEqual(self.store.snapshot()["cycleSeconds"], 610)
+        self.assertEqual(self.store.cycles, [580, 620, 590, 610, 640])
+        self.advance_connected(650)
+        self.store.observe(self.event("new-lap"))
+        self.assertEqual(self.store.snapshot()["cycleSeconds"], 620)
 
     def test_short_outlier_does_not_reanchor_predictions(self):
         self.tracking()
@@ -128,13 +163,17 @@ class ObservationTests(unittest.TestCase):
         self.store.heartbeat(self.event())
         self.assertEqual(self.store.snapshot()["measurementStatus"], "uncertain")
 
-    def test_prediction_expiry_never_invents_new_cycle(self):
+    def test_forecast_continues_over_cycle_boundaries_without_inventing_events(self):
         self.tracking()
         anchor = self.store.snapshot()["lastDepartureAt"]
-        self.advance_connected(570)
-        state = self.store.snapshot()
-        self.assertEqual(state["measurementStatus"], "uncertain")
-        self.assertEqual(state["lastDepartureAt"], anchor)
+        for seconds in [570, 1, 570, 1140]:
+            self.advance_connected(seconds)
+            state = self.store.snapshot()
+            self.assertEqual(state["measurementStatus"], "tracking")
+            self.assertEqual(state["lastDepartureAt"], anchor)
+            self.assertEqual(state["lastDetectionAt"], anchor)
+            self.assertEqual(self.store.cycles, [570])
+            self.assertEqual(self.store.events, ["one", "two"])
 
     def test_old_departure_is_rejected_and_cannot_establish_anchor(self):
         with self.assertRaisesRegex(ValueError, "too old"):
@@ -175,7 +214,7 @@ class ObservationTests(unittest.TestCase):
     def test_cycle_boundaries_are_strict(self):
         for seconds in (300, 300.1, 1799.9, 1800):
             with self.subTest(seconds=seconds):
-                self.store = ObservationStore(clock=lambda: self.now, default_cycle_seconds=560)
+                self.store = ObservationStore(clock=lambda: self.now, default_cycle_seconds=1200)
                 self.store.observe(self.event())
                 self.advance_connected(seconds)
                 result = self.store.observe(self.event("second"))
@@ -186,7 +225,7 @@ class ObservationTests(unittest.TestCase):
                 elif seconds == 1800:
                     self.assertTrue(result["accepted"])
                     self.assertEqual(state["cycleSource"], "default")
-                    self.assertEqual(state["measurementStatus"], "uncertain")
+                    self.assertEqual(state["measurementStatus"], "tracking")
                 else:
                     self.assertTrue(result["accepted"])
                     self.assertAlmostEqual(state["cycleSeconds"], seconds)
@@ -217,6 +256,28 @@ class ObservationTests(unittest.TestCase):
             self.store.observe(self.event("fresh-after-restart"))
             self.assertEqual(self.store.snapshot()["measurementStatus"], "tracking")
             self.assertEqual(self.store.snapshot()["cycleSeconds"], 570)
+
+    def test_next_day_keeps_recent_median_instead_of_first_daily_interval(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "state.json"
+            self.store = ObservationStore(path, clock=lambda: self.now, default_cycle_seconds=560)
+            self.store.observe(self.event())
+            for index, interval in enumerate([510, 514, 518, 520, 522]):
+                self.advance_connected(interval)
+                self.store.observe(self.event(f"previous-day-{index}"))
+            self.now += timedelta(days=1)
+            self.store = ObservationStore(path, clock=lambda: self.now, default_cycle_seconds=560)
+            self.store.heartbeat(self.event())
+            self.assertEqual(self.store.snapshot()["measurementStatus"], "uncertain")
+            self.store.observe(self.event("first-today"))
+            self.assertEqual(self.store.snapshot()["cycleSeconds"], 518)
+            self.assertEqual(self.store.snapshot()["measurementStatus"], "tracking")
+            self.assertEqual(self.store.cycles, [510, 514, 518, 520, 522])
+            self.advance_connected(530)
+            self.store.observe(self.event("second-today"))
+            self.assertEqual(self.store.snapshot()["cycleSeconds"], 520)
+            self.assertEqual(self.store.snapshot()["latestCycleSeconds"], 530)
+            self.assertEqual(self.store.cycles, [514, 518, 520, 522, 530])
 
     def test_legacy_arrival_history_is_not_relabelled_as_departure(self):
         with tempfile.TemporaryDirectory() as directory:

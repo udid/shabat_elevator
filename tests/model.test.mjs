@@ -160,7 +160,36 @@ test('first real departure uses the default cycle without claiming a measured cy
   assert.equal(measured.cycleSource, 'measured');
 });
 
-test('unreachable, stale and missed-cycle snapshots cannot extrapolate detections', () => {
+test('missed detections keep forecasting repeated cycles from the unchanged real departure', () => {
+  const cycle = 514.5;
+  const dwell = profile.stops[0].dwellSeconds * cycle / profile.cycleSeconds;
+  for (const missedCycles of [1, 2, 4]) {
+    for (const phase of [0, 3]) {
+      const elapsed = missedCycles * cycle + phase;
+      const snapshot = Object.freeze(departureSnapshot({
+        cycleSource: 'measured', cycleSeconds: cycle,
+        lastSeenAt: new Date(at(elapsed)).toISOString(),
+      }));
+      const before = { ...snapshot };
+      const live = liveTiming(snapshot, at(elapsed), connected);
+      assert.equal(live.usable, true);
+      assert.equal(live.anchor, anchorMs);
+      const position = estimateState(profile, live.anchor, at(elapsed), live.cycle, live.anchorKind);
+      assert.equal(position.phase, 'moving');
+      assert.equal(position.floor, null);
+      assert.equal(position.fromFloor, 7);
+      assert.equal(position.nextFloor, 5);
+      assert.equal(position.cycleIndex, missedCycles);
+      const arrival = nextArrival(profile, live.anchor, at(elapsed), 7, live.cycle, live.anchorKind);
+      assert.equal(arrival.isHere, false);
+      approximately(arrival.seconds, cycle - dwell - phase);
+      approximately(arrival.arrivalMs, at((missedCycles + 1) * cycle - dwell));
+      assert.deepEqual(snapshot, before);
+    }
+  }
+});
+
+test('unreachable, stale and uncertain snapshots cannot enable a forecast', () => {
   const snapshot = departureSnapshot();
   const unreachable = liveTiming(snapshot, at(2), { ...connected, reachable: false });
   assert.equal(unreachable.usable, false);
@@ -169,11 +198,14 @@ test('unreachable, stale and missed-cycle snapshots cannot extrapolate detection
   const stale = liveTiming(snapshot, at(92), connected);
   assert.equal(stale.connected, false);
   assert.equal(stale.usable, false);
-  assert.equal(liveTiming(departureSnapshot({ measurementStatus: 'stale' }), at(2), connected).usable, false);
-  const expired = liveTiming(departureSnapshot({ lastSeenAt: new Date(at(570)).toISOString() }), at(570), connected);
-  assert.equal(expired.connected, true);
-  assert.equal(expired.usable, false);
-  assert.equal(expired.anchor, anchorMs);
+  for (const measurementStatus of ['stale', 'uncertain', 'waiting']) {
+    const blocked = liveTiming(departureSnapshot({
+      measurementStatus, lastSeenAt: new Date(at(1140)).toISOString(),
+    }), at(1140), connected);
+    assert.equal(blocked.connected, true);
+    assert.equal(blocked.usable, false);
+    assert.equal(blocked.anchor, anchorMs);
+  }
   assert.equal(snapshot.lastDepartureAt, new Date(anchorMs).toISOString());
 });
 

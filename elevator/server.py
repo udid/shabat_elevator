@@ -6,6 +6,7 @@ import argparse
 import hmac
 import json
 import logging
+import math
 import os
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -189,7 +190,15 @@ def main():
     parser.add_argument("--sample-rate", type=int, default=44100)
     parser.add_argument("--monitor-only", action="store_true",
                         help="Test microphone and log candidates without publishing elevator observations")
+    parser.add_argument("--diagnostics-dir", type=Path, default=ROOT / "data" / "diagnostics",
+                        help="Private rolling recordings and diagnostic event logs for live detection")
+    parser.add_argument("--recording-max-gb", type=float, default=16,
+                        help="Maximum rolling audio size in decimal GB (default 16); always reserve 20%% free disk")
+    parser.add_argument("--no-recording", action="store_true",
+                        help="Disable diagnostic audio recording for debugging; retain event logs")
     args = parser.parse_args()
+    if not math.isfinite(args.recording_max_gb) or not 0.001 <= args.recording_max_gb <= 1_000_000:
+        parser.error("--recording-max-gb must be between 0.001 and 1000000")
     if args.monitor_only and not args.detector_config:
         parser.error("--monitor-only requires --detector-config")
     runtime_config = None
@@ -209,6 +218,7 @@ def main():
     public_server = None
     public_thread = None
     detector = None
+    diagnostics = None
     try:
         if args.public_port is not None:
             if args.public_port == server.server_port:
@@ -220,8 +230,12 @@ def main():
             print(f"Public read-only API: http://127.0.0.1:{public_server.server_port}", flush=True)
         if runtime_config is not None:
             from .detector_service import DetectorSupervisor
+            from .diagnostics import Diagnostics
+            diagnostics = Diagnostics(args.diagnostics_dir,
+                                      max_recording_bytes=max(1, int(args.recording_max_gb * 1_000_000_000)),
+                                      recording_enabled=not args.no_recording)
             detector = DetectorSupervisor(server.store, runtime_config, device=device, sample_rate=args.sample_rate,
-                                            monitor_only=args.monitor_only)
+                                            monitor_only=args.monitor_only, diagnostics=diagnostics)
             detector.start()
         print(f"Elevator dashboard: http://{args.host}:{server.server_port} ({'live' if args.live else 'simulation'})", flush=True)
         server.serve_forever()
@@ -230,6 +244,8 @@ def main():
     finally:
         if detector is not None:
             detector.stop()
+        if diagnostics is not None:
+            diagnostics.close()
         if public_thread is not None and public_thread.is_alive():
             public_server.shutdown()
             public_thread.join()

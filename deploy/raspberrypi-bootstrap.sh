@@ -100,6 +100,7 @@ DEVICE_ID=begin17-floor7 "$PYTHON" -B -m unittest discover -s tests -p 'test_ser
 "$PYTHON" -B -m unittest discover -s tests -p 'test_live_detector.py' -v
 "$PYTHON" -B -m unittest discover -s tests -p 'test_state.py' -v
 "$PYTHON" -B -m unittest discover -s tests -p 'test_detector_service.py' -v
+"$PYTHON" -B -m unittest discover -s tests -p 'test_diagnostics.py' -v
 
 sudo install -m 0644 deploy/shabat-elevator.service /etc/systemd/system/shabat-elevator.service
 sudo systemctl daemon-reload

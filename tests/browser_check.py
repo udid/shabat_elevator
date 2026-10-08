@@ -265,12 +265,13 @@ def main():
         page.locator("#floor-select").select_option("6")
         expect(page.locator("#mode-banner")).not_to_be_visible()
         expect(page.locator("#last-update")).to_have_text("17:59:58")
-        expect(page.locator("#last-update-field")).to_be_in_viewport(ratio=1)
+        expect(page.locator("#last-update-field")).not_to_be_visible()
         expect(page.locator("#cycle-duration")).to_be_in_viewport(ratio=1)
-        update_box = page.locator("#last-update").bounding_box()
-        arrival_box = page.locator("#last-arrival").bounding_box()
-        assert abs(update_box["y"] - arrival_box["y"]) <= 1, "Last update and last departure should share a row on small phone"
-        assert update_box["x"] >= arrival_box["x"] + arrival_box["width"], "Last update should be to the right of last departure on small phone"
+        page.locator("#settings-button").click()
+        expect(page.locator("#settings-panel #last-update-field")).to_be_in_viewport(ratio=1)
+        page.screenshot(path=str(ARTIFACTS / "small-phone-settings-live.png"), full_page=True)
+        page.keyboard.press("Escape")
+        expect(page.locator("#last-update-field")).not_to_be_visible()
         assert page.evaluate("document.documentElement.scrollHeight <= innerHeight && document.documentElement.scrollWidth <= innerWidth"), "Live measurements overflow on small phone"
         expect(page.locator("#last-arrival")).to_have_text("17:57:00")
         expect(page.locator("#countdown")).to_have_text(re.compile(r"\d{2}:\d{2}"))
@@ -302,15 +303,23 @@ def main():
         expect(page.locator("#mode-banner")).not_to_be_visible()
         expect(page.locator("#countdown")).not_to_be_visible()
         live.update(sourceConnected=True, measurementStatus="tracking", lastSeenAt="2026-10-09T15:00:58Z",
-                    lastArrivalAt="2026-10-09T14:40:00Z")
+                    lastArrivalAt="2026-10-09T14:40:00Z", cycleSource="measured")
         page.clock.run_for(30_500)
-        expect(page.locator("#countdown")).not_to_be_visible()
-        expect(page.locator("#countdown-label")).to_contain_text("לסנכרון")
-        live.update(lastArrivalAt="2026-10-08T14:40:00Z", lastSeenAt="2026-10-09T15:01:28Z")
+        expect_connection(page, "connected", "מחובר לגלאי")
+        expect(page.locator("#countdown")).to_be_visible()
+        expect(page.locator("#countdown")).to_have_text(re.compile(r"\d{2}:\d{2}"))
+        expect(page.locator("#position-readout")).to_be_visible()
+        expect(page.locator("#countdown-label")).to_have_text("זמן משוער להגעה")
+        expect(page.locator("#cycle-label")).to_have_text("מחזור חציוני")
+        expect(page.locator("#last-arrival")).to_have_text("17:40:00")
+        live.update(lastArrivalAt="2026-10-08T14:40:00Z", lastSeenAt="2026-10-09T15:01:28Z",
+                    measurementStatus="uncertain")
         page.clock.run_for(30_500)
         expect(page.locator("#last-arrival")).to_contain_text("8.10")
         expect(page.locator("#last-update")).to_have_text("18:01:28")
         expect(page.locator("#countdown")).not_to_be_visible()
+        expect(page.locator("#position-readout")).not_to_be_visible()
+        expect(page.locator("#countdown-label")).to_contain_text("לסנכרון")
         live.update(lastArrivalAt=None, cycleSeconds=None, measurementStatus="waiting", lastSeenAt="2026-10-09T15:01:58Z")
         page.clock.run_for(30_500)
         expect(page.locator("#countdown-label")).to_have_text("ממתינים למדידת מחזור")
@@ -327,7 +336,7 @@ def main():
         expect(page.locator("#mode-banner")).not_to_be_visible()
         page.screenshot(path=str(ARTIFACTS / "small-phone-live-offline.png"), full_page=True)
         context.close()
-        print("PASS: disconnection, old observations, waiting and recovery retain distinct arrival and heartbeat timestamps")
+        print("PASS: missed detections keep forecasting from the real timestamp; disconnection, uncertain state and waiting suppress forecasts")
 
         monitor = {"mode": "live", "sourceConnected": True, "monitorOnly": True,
                    "lastSeenAt": "2026-10-09T14:59:58Z", "measurementStatus": "waiting"}

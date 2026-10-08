@@ -166,6 +166,64 @@ class StreamingTests(unittest.TestCase):
             with self.subTest(values=values), self.assertRaises(ValueError):
                 StreamingDetector(config(), RATE).feed(values)
 
+    def test_diagnostic_candidates_explain_levels_duration_and_rearm(self):
+        details = []
+        detector = StreamingDetector(config(), RATE, on_candidate=details.append)
+        samples = self.audio(15, [
+            (1, 1.8, .001, 1000),  # Weak chime from a different floor.
+            (3, 3.03, .1, 1000),   # Too short.
+            (5, 8, .1, 1000),      # Too long, with bounded power history.
+            (10, 10.8, .1, 1000),  # Accepted.
+            (11.3, 11.9, .1, 1000),  # Rearm suppression.
+        ])
+        found = detector.feed(samples)
+        self.assertEqual([item["reason"] for item in details],
+                         ["weak_band", "too_short", "too_long", "accepted", "rearm"])
+        self.assertEqual(found, [details[3]["startSample"]])
+        for item in details:
+            self.assertEqual(item["accepted"], item["reason"] == "accepted")
+            self.assertAlmostEqual(item["durationSeconds"],
+                                   (item["endSample"] - item["startSample"]) / RATE)
+            self.assertAlmostEqual(item["snrDbP90"], item["bandDbfsP90"] + 100)
+            self.assertLessEqual(item["powerFrames"], item["activeFrames"])
+        self.assertAlmostEqual(details[0]["bandDbfsP90"], 20 * math.log10(.001 / math.sqrt(2)), delta=.05)
+        self.assertTrue(details[2]["powerStatisticsTruncated"])
+        self.assertLess(details[2]["powerFrames"], details[2]["activeFrames"])
+        self.assertFalse(details[3]["powerStatisticsTruncated"])
+
+    def test_continuous_noise_retains_only_bounded_power_samples(self):
+        details = []
+        detector = StreamingDetector(config(), RATE, on_candidate=details.append)
+        detector.feed(self.audio(120, [(1, 120, .1, 1000)]))
+        self.assertTrue(detector.candidate["too_long"])
+        self.assertLessEqual(len(detector.candidate["powers"]),
+                             math.ceil(detector.settings["maximumEventSeconds"] * RATE / detector.hop) + 1)
+        self.assertEqual(details, [])  # No per-frame log flood.
+        detector.discard("capture_failure")
+        self.assertEqual(len(details), 1)
+        self.assertEqual(details[0]["reason"], "capture_failure")
+        self.assertGreater(details[0]["durationSeconds"], 118)
+
+    def test_gap_and_shutdown_report_unfinished_candidates_without_detection(self):
+        details = []
+        detector = StreamingDetector(config(), RATE, on_candidate=details.append)
+        self.assertEqual(detector.feed(self.audio(1.6, [(1, 1.6, .1, 1000)])), [])
+        detector.reset(3 * RATE)
+        self.assertEqual(details[0]["reason"], "discontinuity")
+        self.assertFalse(details[0]["accepted"])
+        self.assertEqual(detector.feed(self.audio(1.6, [(1, 1.6, .1, 1000)])), [])
+        detector.discard("capture_stopped")
+        self.assertEqual(details[1]["reason"], "capture_stopped")
+        self.assertIsNone(detector.last_event)
+
+    def test_failing_diagnostic_callback_cannot_change_detection(self):
+        def broken(details):
+            raise OSError("disk is full")
+
+        samples = self.audio(3, [(1, 1.8, .1, 1000)])
+        expected = StreamingDetector(config(), RATE).feed(samples)
+        self.assertEqual(StreamingDetector(config(), RATE, on_candidate=broken).feed(samples), expected)
+
 
 class FakeAbort(Exception):
     pass
@@ -214,6 +272,109 @@ class CaptureContinuityTests(unittest.TestCase):
 
 @unittest.skipUnless(HAS_NUMPY, "NumPy audio dependency is optional")
 class ListenerTests(unittest.TestCase):
+    def run_capture(self, blocks, document=None, diagnostics=None, stop_after_heartbeats=1):
+        """Feed known ADC-timed buffers without accessing an audio device."""
+        import numpy as np
+        stop = threading.Event()
+        state = SimpleNamespace(closed=False, openings=0)
+        heartbeats, events = [], []
+        epoch = 1_800_000_000_000_000_000
+
+        class FakeStream:
+            active = True
+
+            def __init__(self, **options):
+                self.options = options
+                state.openings += 1
+
+            def __enter__(self):
+                adc = 10.0
+                for samples in blocks:
+                    frames = len(samples)
+                    self.options["callback"](np.asarray(samples, dtype=np.int16).tobytes(), frames,
+                                             SimpleNamespace(inputBufferAdcTime=adc, currentTime=adc + .1), False)
+                    adc += frames / RATE
+                return self
+
+            def __exit__(self, *args):
+                state.closed = True
+
+        def heartbeat(timestamp):
+            heartbeats.append(timestamp)
+            if len(heartbeats) == stop_after_heartbeats:
+                stop.set()
+
+        sd = SimpleNamespace(CallbackAbort=FakeAbort, RawInputStream=FakeStream,
+                             check_input_settings=lambda **kwargs: None)
+        real_import = __import__("importlib").import_module
+        with patch("elevator.live_detector.importlib.import_module",
+                   side_effect=lambda name: sd if name == "sounddevice" else real_import(name)), \
+                patch("elevator.live_detector.time.time_ns", return_value=epoch), \
+                patch("elevator.live_detector.time.monotonic_ns", return_value=1_000_000_000):
+            listen(document or config(), events.append, heartbeat, stop,
+                   sample_rate=RATE, diagnostics=diagnostics)
+        return state, heartbeats, events, epoch - 100_000_000
+
+    def test_recording_preserves_selected_pcm_channel_and_adc_epoch(self):
+        import numpy as np
+        document = config()
+        document["detector"]["channel"] = 1
+        selected = np.array([-32768, -1, 0, 1, 32767, 1234], dtype=np.int16)
+        samples = np.column_stack((np.full(len(selected), 9999, dtype=np.int16), selected))
+        audio, events = [], []
+        diagnostics = SimpleNamespace(audio=lambda pcm, **fields: audio.append((pcm, fields)),
+                                      event=lambda kind, **fields: events.append((kind, fields)))
+        state, heartbeats, found, start_ns = self.run_capture([samples], document, diagnostics)
+        self.assertEqual(state.openings, 1)
+        self.assertTrue(state.closed)
+        self.assertEqual(len(heartbeats), 1)
+        self.assertEqual(found, [])
+        self.assertEqual(audio[0][0], selected.astype("<i2").tobytes())
+        self.assertEqual(audio[0][1]["sample_rate"], RATE)
+        self.assertEqual(audio[0][1]["start_ns"], start_ns)
+        self.assertEqual([kind for kind, fields in events],
+                         ["capture_start", "capture_open", "capture_ready", "audio_summary", "capture_stop"])
+        self.assertTrue(all(fields["sessionId"] == audio[0][1]["session_id"] for kind, fields in events))
+        summary = next(fields for kind, fields in events if kind == "audio_summary")
+        self.assertEqual(summary["frames"], len(selected))
+        self.assertAlmostEqual(summary["clippingFraction"], 2 / 6)
+        self.assertAlmostEqual(summary["rmsDbfs"],
+                               10 * math.log10(float(np.mean((selected.astype(np.float64) / 32768) ** 2))))
+
+    def test_audio_diagnostics_failure_never_disconnects_microphone(self):
+        def broken(*args, **kwargs):
+            raise OSError("disk is full")
+
+        state, heartbeats, events, _ = self.run_capture([[0] * 1024], diagnostics=SimpleNamespace(audio=broken, event=broken))
+        self.assertTrue(state.closed)
+        self.assertEqual(len(heartbeats), 1)
+        self.assertEqual(events, [])
+
+    def test_candidate_log_onset_matches_published_departure_sample_clock(self):
+        import numpy as np
+        samples = np.zeros(3 * RATE, dtype=np.int16)
+        times = np.arange(round(.8 * RATE)) / RATE
+        samples[RATE:RATE + len(times)] = (3276 * np.sin(2 * np.pi * 1000 * times)).astype(np.int16)
+        logged = []
+        diagnostics = SimpleNamespace(audio=lambda *args, **fields: None,
+                                      event=lambda kind, **fields: logged.append((kind, fields)))
+        _, _, departures, first_ns = self.run_capture([samples], diagnostics=diagnostics)
+        details = next(fields for kind, fields in logged if kind == "acoustic_candidate")
+        self.assertTrue(details["accepted"])
+        self.assertEqual(details["onsetNs"], first_ns + round(details["startSample"] * 1e9 / RATE))
+        self.assertEqual(details["onsetUtc"], departures[0].isoformat())
+
+    def test_summary_is_bounded_to_minute_intervals_and_final_partial_interval(self):
+        events, audio = [], []
+        diagnostics = SimpleNamespace(audio=lambda pcm, **fields: audio.append(fields),
+                                      event=lambda kind, **fields: events.append((kind, fields)))
+        _, _, _, first_ns = self.run_capture([[0] * RATE] * 61, diagnostics=diagnostics, stop_after_heartbeats=13)
+        summaries = [fields for kind, fields in events if kind == "audio_summary"]
+        self.assertEqual([item["durationSeconds"] for item in summaries], [60, 1])
+        self.assertEqual([item["startNs"] for item in summaries], [first_ns, first_ns + 60_000_000_000])
+        self.assertEqual([item["start_ns"] for item in audio],
+                         [first_ns + index * 1_000_000_000 for index in range(61)])
+
     def test_heartbeat_follows_actual_samples_and_stop_closes_stream(self):
         stop = threading.Event()
         heartbeats, events = [], []
@@ -252,7 +413,9 @@ class ListenerTests(unittest.TestCase):
     def test_failed_or_disconnected_input_never_sends_heartbeat(self):
         for broken_callback in (False, True):
             with self.subTest(callback_failure=broken_callback):
-                heartbeats = []
+                heartbeats, diagnostics_events = [], []
+                diagnostics = SimpleNamespace(audio=lambda *args, **fields: None,
+                                              event=lambda kind, **fields: diagnostics_events.append((kind, fields)))
 
                 class FakeStream:
                     active = False
@@ -278,8 +441,13 @@ class ListenerTests(unittest.TestCase):
                 with patch("elevator.live_detector.importlib.import_module",
                            side_effect=lambda name: sd if name == "sounddevice" else real_import(name)):
                     with self.assertRaises(CaptureError):
-                        listen(config(), lambda value: None, heartbeats.append, threading.Event(), sample_rate=RATE)
+                        listen(config(), lambda value: None, heartbeats.append, threading.Event(),
+                               sample_rate=RATE, diagnostics=diagnostics)
                 self.assertEqual(heartbeats, [])
+                self.assertEqual([kind for kind, fields in diagnostics_events],
+                                 ["capture_start", "capture_open", "capture_failure", "capture_stop"])
+                self.assertEqual(diagnostics_events[-1][1]["reason"], "failure")
+                self.assertEqual(diagnostics_events[-2][1]["errorType"], "CaptureError")
 
 
 if __name__ == "__main__":

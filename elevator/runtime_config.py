@@ -6,9 +6,13 @@ calibration v2: normalized PCM, symmetric Hann windows, FFT size equal to the
 next power of two above sample_rate * .064, half-window hops, spectral power
 normalized by nfft * sum(window**2), and p90 active-frame band power per event.
 
-defaultCycleSeconds is a bootstrap duration, never an observation timestamp.
-The first real departure establishes phase; the first valid interval between
-two real departures replaces the default rather than averaging it as a sample.
+defaultCycleSeconds is a fallback duration only when no measured history exists,
+never an observation timestamp or a sample. The live cycle is the median of up
+to five recent valid intervals, retained across days and restarts. A fresh real
+departure establishes phase after startup or reconnection. With fresh heartbeats,
+forecasting continues past the expected departure without synthesizing an event.
+An interval above 1.5 times the recent median (or the fallback) is excluded from
+cycle history, while its real departure immediately reanchors the forecast.
 """
 
 from __future__ import annotations

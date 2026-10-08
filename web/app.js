@@ -287,7 +287,7 @@ function render() {
 
   setText('last-arrival-label', simulation ? 'זיהוי מדומה בקומה 7' : anchorKind === 'departure' ? 'עזיבה אחרונה בקומה 7' : 'הגעה אחרונה לקומה 7');
   setText('last-arrival', observationTime(anchor, now));
-  setText('cycle-label', simulation ? 'מחזור הדגמה' : live.cycleSource === 'default' ? 'מחזור ברירת מחדל' : live.cycleSource === 'measured' ? 'מחזור שנמדד' : 'מחזור');
+  setText('cycle-label', simulation ? 'מחזור הדגמה' : live.cycleSource === 'default' ? 'מחזור ברירת מחדל' : live.cycleSource === 'measured' ? 'מחזור חציוני' : 'מחזור');
   setText('cycle-duration', cycle ? duration(cycle) : '—');
   $('last-update-field').hidden = simulation;
   setText('last-update', observationTime(live?.seen, now));

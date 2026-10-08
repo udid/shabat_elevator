@@ -12,6 +12,7 @@ from threading import RLock
 
 MIN_CYCLE_SECONDS = 300
 MAX_CYCLE_SECONDS = 1800
+CYCLE_HISTORY_SIZE = 5
 
 
 def utc_now() -> datetime:
@@ -50,7 +51,7 @@ class ObservationStore:
         self.device_id = device_id
         self.clock = clock
         self.stale_after = stale_after
-        self.arrival_grace = arrival_grace  # Retained for callers; no fictional extra lap.
+        self.arrival_grace = arrival_grace  # Retained for compatibility with callers.
         self.default_cycle_seconds = default_cycle_seconds
         self.event_kind = event_kind
         self.lock = RLock()
@@ -60,7 +61,6 @@ class ObservationStore:
         self.events: list[str] = []
         self.note = None
         self._anchor_current = False
-        self._interval_anomaly = False
         self._load()
 
     def _load(self):
@@ -75,7 +75,7 @@ class ObservationStore:
             departure = parse_time(saved["lastDepartureAt"]) if saved.get("lastDepartureAt") else None
             if departure and departure > self.clock() + timedelta(seconds=5):
                 return
-            cycles = [float(x) for x in saved.get("cycles", []) if valid_cycle(x)][-5:]
+            cycles = [float(x) for x in saved.get("cycles", []) if valid_cycle(x)][-CYCLE_HISTORY_SIZE:]
             events = [x for x in saved.get("events", [])
                       if isinstance(x, str) and x.strip() and len(x) <= 128][-64:]
             self.last_departure = departure
@@ -154,17 +154,18 @@ class ObservationStore:
             baseline = median(self.cycles) if self.cycles else None
             if baseline is not None and interval is not None and interval < 0.65 * baseline:
                 return {"accepted": False, "reason": "too_soon"}
+            # Use calibration to guard the first measurement too: a missed
+            # departure must not replace the bootstrap cycle with a double lap.
+            reference_cycle = baseline if baseline is not None else self.default_cycle_seconds
             self._invalidate_disconnected_anchor(now)
             continuous = self._anchor_current
             self.note = None
-            self._interval_anomaly = False
             if interval is not None and continuous:
-                if valid_cycle(interval) and (baseline is None or interval <= 1.5 * baseline):
+                if valid_cycle(interval) and (reference_cycle is None or interval <= 1.5 * reference_cycle):
                     # The configured default is never added to measurement history.
-                    self.cycles = (self.cycles + [interval])[-5:]
+                    self.cycles = (self.cycles + [interval])[-CYCLE_HISTORY_SIZE:]
                 else:
-                    self._interval_anomaly = True
-                    self.note = "חריגה בין זיהויים; זמן המחזור הקודם נשמר עד למדידה תקינה"
+                    self.note = "מרווח ארוך בין זיהויים; זמן המחזור הקודם נשמר"
             self.last_departure = observed
             self.last_seen = max(self.last_seen or observed, observed)
             self._anchor_current = True
@@ -184,10 +185,11 @@ class ObservationStore:
                 status = "waiting"
             elif not connected:
                 status = "stale"
-            elif (not self._anchor_current or self._interval_anomaly
-                  or (now - self.last_departure).total_seconds() >= cycle):
-                status = "uncertain"  # Never wrap a real event into a fictional new departure.
+            elif not self._anchor_current:
+                status = "uncertain"
             else:
+                # Forecast further laps from the recent median without changing
+                # the timestamp of the last actual departure or adding samples.
                 status = "tracking"
             return {"mode": "live", "sourceConnected": connected,
                     "anchorKind": self.event_kind,

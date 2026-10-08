@@ -149,8 +149,9 @@ export function liveTiming(live, nowMs, { reachable = false, staleAfterSeconds =
   const cycle = cycleValid ? live.cycleSeconds : null;
   const fresh = seen !== null && nowMs - seen <= staleAfterSeconds * 1000 && seen - nowMs <= 5000;
   const connected = reachable === true && live?.mode === 'live' && live?.sourceConnected === true && fresh;
-  const withinCycle = anchor !== null && cycle !== null && nowMs - anchor < cycle * 1000;
+  // Forecast repeated cycles from the real observation without advancing its timestamp.
+  const timingValid = anchor !== null && cycle !== null;
   const monitorOnly = live?.monitorOnly === true;
-  const usable = !monitorOnly && connected && withinCycle && seen >= anchor && live?.measurementStatus === 'tracking';
+  const usable = !monitorOnly && connected && timingValid && seen >= anchor && live?.measurementStatus === 'tracking';
   return { usable, anchor, anchorKind: kindValid ? anchorKind : null, cycle, cycleSource, connected, seen, monitorOnly, live };
 }

@@ -5,7 +5,7 @@ import threading
 import unittest
 from datetime import timedelta
 from http.client import HTTPConnection
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
@@ -51,7 +51,8 @@ class ServerTests(unittest.TestCase):
             self.assertTrue(json.load(response)["accepted"])
 
     def test_python_source_and_environment_are_not_public(self):
-        for path in ("/run_metrics_server.py", "/.env", "/../.env", "/elevator/state.py"):
+        for path in ("/run_metrics_server.py", "/.env", "/../.env", "/elevator/state.py",
+                     "/data/diagnostics/logs/events.jsonl", "/data/diagnostics/recordings/1800000000000.wav"):
             with self.subTest(path=path), self.assertRaises(HTTPError) as caught:
                 urlopen(self.base + path)
             self.assertEqual(caught.exception.code, 404)
@@ -137,7 +138,8 @@ class PublicServerTests(unittest.TestCase):
 
     def test_public_does_not_serve_files_or_other_api_routes(self):
         for path in ("/", "/index.html", "/config.json", "/app.js", "/.env", "/../.env",
-                     "/api/observations", "/api/heartbeat", "/api/unknown"):
+                     "/api/observations", "/api/heartbeat", "/api/unknown",
+                     "/data/diagnostics/logs/events.jsonl", "/data/diagnostics/recordings/1800000000000.wav"):
             with self.subTest(path=path):
                 status, _, _ = self.request(self.public, path)
                 self.assertEqual(status, 404)
@@ -189,6 +191,29 @@ class PublicServerTests(unittest.TestCase):
 
 
 class ServerLifecycleTests(unittest.TestCase):
+    def test_live_diagnostics_start_automatically_and_close_on_shutdown(self):
+        runtime = {"floor": 7, "defaultCycleSeconds": 560, "detector": {"frequencyHighHz": 3800}}
+        for extra, recording in (([], True), (["--no-recording"], False)):
+            with self.subTest(recording=recording):
+                local = Mock()
+                local.serve_forever.side_effect = KeyboardInterrupt
+                args = ["run_metrics_server.py", "--live", "--detector-config", "dummy.json", *extra]
+                with patch("sys.argv", args), patch("elevator.server.load_env"), \
+                        patch("elevator.server.Path.read_text", return_value="{}"), \
+                        patch("elevator.runtime_config.validate_runtime_config", return_value=runtime), \
+                        patch("elevator.server.create_server", return_value=local), \
+                        patch("elevator.diagnostics.Diagnostics") as storage, \
+                        patch("elevator.detector_service.DetectorSupervisor") as detector, \
+                        patch("builtins.print"):
+                    main()
+                self.assertEqual(storage.call_args.kwargs["max_recording_bytes"], 16_000_000_000)
+                self.assertEqual(storage.call_args.kwargs["recording_enabled"], recording)
+                self.assertIs(detector.call_args.kwargs["diagnostics"], storage.return_value)
+                detector.return_value.start.assert_called_once()
+                detector.return_value.stop.assert_called_once()
+                storage.return_value.close.assert_called_once()
+                local.server_close.assert_called_once()
+
     def test_same_public_and_local_port_is_rejected(self):
         local = create_server(port=0)
         self.addCleanup(local.server_close)
