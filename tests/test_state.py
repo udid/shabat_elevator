@@ -175,6 +175,40 @@ class ObservationTests(unittest.TestCase):
             self.assertEqual(self.store.cycles, [570])
             self.assertEqual(self.store.events, ["one", "two"])
 
+    def test_detection_expires_at_two_hours_despite_continuous_heartbeats(self):
+        for measured in (False, True):
+            with self.subTest(measured=measured):
+                self.store = ObservationStore(clock=lambda: self.now, default_cycle_seconds=560)
+                if measured:
+                    self.tracking()
+                else:
+                    self.store.observe(self.event())
+                original = self.store.snapshot()
+                cycles, events = self.store.cycles[:], self.store.events[:]
+                self.advance_connected(7199.999)
+                self.assertEqual(self.store.snapshot()["measurementStatus"], "tracking")
+                self.advance_connected(.001)
+                state = self.store.snapshot()
+                self.assertTrue(state["sourceConnected"])
+                self.assertEqual(state["measurementStatus"], "uncertain")
+                self.advance_connected(30)
+                self.assertEqual(self.store.snapshot()["measurementStatus"], "uncertain")
+                self.assertEqual(state["lastDetectionAt"], original["lastDetectionAt"])
+                self.assertEqual(state["cycleSeconds"], original["cycleSeconds"])
+                self.assertEqual(self.store.cycles, cycles)
+                self.assertEqual(self.store.events, events)
+
+                # Repeated IDs and heartbeats cannot renew an expired detection.
+                duplicate = self.store.observe(self.event(events[-1]))
+                self.assertEqual(duplicate["reason"], "duplicate")
+                self.assertEqual(self.store.snapshot()["measurementStatus"], "uncertain")
+                self.assertTrue(self.store.observe(self.event("after-two-hours"))["accepted"])
+                recovered = self.store.snapshot()
+                self.assertEqual(recovered["measurementStatus"], "tracking")
+                self.assertEqual(recovered["lastDetectionAt"], iso(self.now))
+                self.assertEqual(self.store.cycles, cycles)
+                self.assertEqual(recovered["cycleSeconds"], original["cycleSeconds"])
+
     def test_old_departure_is_rejected_and_cannot_establish_anchor(self):
         with self.assertRaisesRegex(ValueError, "too old"):
             self.store.observe(self.event(observedAt=iso(self.now - timedelta(seconds=300))))

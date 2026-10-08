@@ -338,6 +338,28 @@ def main():
         context.close()
         print("PASS: missed detections keep forecasting from the real timestamp; disconnection, uncertain state and waiting suppress forecasts")
 
+        expiring = {"mode": "live", "sourceConnected": True, "anchorKind": "departure",
+                    "lastDepartureAt": "2026-10-09T13:00:20Z", "lastArrivalAt": None,
+                    "lastSeenAt": "2026-10-09T14:59:58Z", "cycleSeconds": 560,
+                    "cycleSource": "default", "measurementStatus": "tracking"}
+        context, page = prepare(320, 640, active=True, live_state=expiring)
+        page.locator("#floor-select").select_option("6")
+        expect(page.locator("#countdown")).to_be_visible()
+        # Cross the two-hour boundary before the next 30-second API poll.
+        page.clock.run_for(21_000)
+        expect_connection(page, "connected", "מחובר לגלאי")
+        expect(page.locator("#countdown")).not_to_be_visible()
+        expect(page.locator("#position-readout")).not_to_be_visible()
+        expect(page.locator("#countdown-label")).to_contain_text("לסנכרון")
+        expect(page.locator("#last-arrival")).to_have_text("16:00:20")
+        detected = page.evaluate("new Date().toISOString()")
+        expiring.update(lastDepartureAt=detected, lastSeenAt=detected)
+        page.clock.run_for(30_500)
+        expect(page.locator("#countdown")).to_be_visible()
+        expect(page.locator("#position-readout")).to_be_visible()
+        context.close()
+        print("PASS: two-hour detection expiry pauses forecasts between polls; a new detection restores them")
+
         monitor = {"mode": "live", "sourceConnected": True, "monitorOnly": True,
                    "lastSeenAt": "2026-10-09T14:59:58Z", "measurementStatus": "waiting"}
         context, page = prepare(320, 640, active=True, live_state=monitor)

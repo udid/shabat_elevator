@@ -13,6 +13,7 @@ from threading import RLock
 MIN_CYCLE_SECONDS = 300
 MAX_CYCLE_SECONDS = 1800
 CYCLE_HISTORY_SIZE = 5
+MAX_DETECTION_AGE_SECONDS = 2 * 60 * 60
 
 
 def utc_now() -> datetime:
@@ -185,7 +186,8 @@ class ObservationStore:
                 status = "waiting"
             elif not connected:
                 status = "stale"
-            elif not self._anchor_current:
+            elif (not self._anchor_current
+                  or (now - self.last_departure).total_seconds() >= MAX_DETECTION_AGE_SECONDS):
                 status = "uncertain"
             else:
                 # Forecast further laps from the recent median without changing

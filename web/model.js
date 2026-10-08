@@ -1,5 +1,6 @@
 /** Pure timing model. Profiles start at arrival; live anchors may record departure. */
 export const DEFAULT_ROUTE = Object.freeze([0, 0, 12, 10, 8, 6, 4, 2, -1, 0, 11, 9, 7, 5, 3, 1, -1]);
+const MAX_DETECTION_AGE_MS = 2 * 60 * 60 * 1000;
 
 function positive(value, name) {
   if (!Number.isFinite(value) || value <= 0) throw new RangeError(`${name} must be positive`);
@@ -149,8 +150,8 @@ export function liveTiming(live, nowMs, { reachable = false, staleAfterSeconds =
   const cycle = cycleValid ? live.cycleSeconds : null;
   const fresh = seen !== null && nowMs - seen <= staleAfterSeconds * 1000 && seen - nowMs <= 5000;
   const connected = reachable === true && live?.mode === 'live' && live?.sourceConnected === true && fresh;
-  // Forecast repeated cycles from the real observation without advancing its timestamp.
-  const timingValid = anchor !== null && cycle !== null;
+  // Stop at two hours even between API polls; heartbeats do not renew a detection.
+  const timingValid = anchor !== null && cycle !== null && nowMs - anchor < MAX_DETECTION_AGE_MS;
   const monitorOnly = live?.monitorOnly === true;
   const usable = !monitorOnly && connected && timingValid && seen >= anchor && live?.measurementStatus === 'tracking';
   return { usable, anchor, anchorKind: kindValid ? anchorKind : null, cycle, cycleSource, connected, seen, monitorOnly, live };

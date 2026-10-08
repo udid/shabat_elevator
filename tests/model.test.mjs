@@ -189,6 +189,25 @@ test('missed detections keep forecasting repeated cycles from the unchanged real
   }
 });
 
+test('two-hour detection expiry suppresses forecasting even before the next API poll', () => {
+  for (const elapsed of [7199.999, 7200, 7200.001, 7500]) {
+    const snapshot = Object.freeze(departureSnapshot({
+      lastSeenAt: new Date(at(elapsed)).toISOString(),
+    }));
+    const live = liveTiming(snapshot, at(elapsed), connected);
+    assert.equal(live.connected, true);
+    assert.equal(live.usable, elapsed < 7200);
+    assert.equal(live.anchor, anchorMs);
+    assert.equal(live.cycle, 570);
+  }
+  const recovered = liveTiming(departureSnapshot({
+    lastDepartureAt: new Date(at(7500)).toISOString(),
+    lastSeenAt: new Date(at(7500)).toISOString(),
+  }), at(7501), connected);
+  assert.equal(recovered.usable, true);
+  assert.equal(recovered.anchor, at(7500));
+});
+
 test('unreachable, stale and uncertain snapshots cannot enable a forecast', () => {
   const snapshot = departureSnapshot();
   const unreachable = liveTiming(snapshot, at(2), { ...connected, reachable: false });
