@@ -97,6 +97,7 @@ class ObservationStore:
                       if isinstance(x, str) and x.strip() and len(x) <= 128][-64:]
             self.last_departure = departure
             self.events = events
+            self._expire_history(self.clock())
             # Old measured cycles are ignored. Disk history never proves this
             # anchor or a candidate pair belongs to the current capture session.
         except (ValueError, TypeError, KeyError, OSError, OverflowError):
@@ -113,6 +114,16 @@ class ObservationStore:
                                     "lastDepartureAt": iso(self.last_departure),
                                     "events": self.events}), encoding="utf-8")
         temp.replace(self.path)
+
+    def _expire_history(self, now):
+        """Forget an expired departure without disrupting fresh audio candidates."""
+        if (self.last_departure is not None
+                and now - self.last_departure > timedelta(seconds=MAX_DETECTION_AGE_SECONDS)):
+            self.last_departure = None
+            self.events = []
+            self._anchor_current = False
+            # Write once at expiry, not on every heartbeat or state request.
+            self._save()
 
     def _validate(self, payload, max_age):
         if not isinstance(payload, dict) or payload.get("deviceId") != self.device_id:
@@ -139,6 +150,7 @@ class ObservationStore:
     def heartbeat(self, payload):
         with self.lock:
             observed, now = self._validate(payload, self.stale_after)
+            self._expire_history(now)
             self._invalidate_disconnected_anchor(now)
             self.last_seen = max(self.last_seen or observed, observed)
             return {"accepted": True}
@@ -166,6 +178,7 @@ class ObservationStore:
             reported = payload.get("cycleSeconds")
             if reported is not None and not valid_cycle(reported):
                 raise ValueError("cycleSeconds must be greater than 300 and less than 1800")
+            self._expire_history(now)
             if event_id in self.events or event_id in self._seen_candidate_ids:
                 return {"accepted": False, "reason": "duplicate"}
             if self.last_departure and observed <= self.last_departure:
@@ -183,7 +196,9 @@ class ObservationStore:
                 return {"accepted": False, "reason": "missing_cycle_config"}
 
             horizon = self._cycle_windows[-1][1]
-            while self.candidates and observed - self.candidates[0][0] > horizon:
+            cutoff = now - timedelta(seconds=MAX_DETECTION_AGE_SECONDS)
+            while self.candidates and (observed - self.candidates[0][0] > horizon
+                                       or self.candidates[0][0] < cutoff):
                 self.candidates.popleft()
             matches = any(lower <= observed - previous <= upper
                           for previous, _ in self.candidates
@@ -207,6 +222,7 @@ class ObservationStore:
     def snapshot(self):
         with self.lock:
             now = self.clock()
+            self._expire_history(now)
             connected = self._connected(now)
             self._invalidate_disconnected_anchor(now)
             cycle = self.default_cycle_seconds

@@ -211,7 +211,7 @@ test('two-hour detection expiry suppresses forecasting even before the next API 
     const live = liveTiming(snapshot, at(elapsed), connected);
     assert.equal(live.connected, true);
     assert.equal(live.usable, elapsed < 7200);
-    assert.equal(live.anchor, anchorMs);
+    assert.equal(live.anchor, elapsed <= 7200 ? anchorMs : null);
     assert.equal(live.cycle, 558);
   }
   const recovered = liveTiming(departureSnapshot({
@@ -220,6 +220,37 @@ test('two-hour detection expiry suppresses forecasting even before the next API 
   }), at(7501), connected);
   assert.equal(recovered.usable, true);
   assert.equal(recovered.anchor, at(7500));
+});
+
+test('observations older than two hours are ignored online and in cached offline snapshots', () => {
+  for (const reachable of [true, false]) {
+    for (const elapsed of [7199.999, 7200, 7200.001, 86400]) {
+      for (const anchorKind of ['departure', 'arrival']) {
+        const snapshot = Object.freeze(departureSnapshot({
+          anchorKind: anchorKind === 'arrival' ? undefined : anchorKind,
+          lastArrivalAt: anchorKind === 'arrival' ? new Date(anchorMs).toISOString() : null,
+          lastSeenAt: new Date(at(elapsed)).toISOString(),
+        }));
+        const live = liveTiming(snapshot, at(elapsed), { ...connected, reachable });
+        assert.equal(live.anchor, elapsed <= 7200 ? anchorMs : null);
+        assert.equal(live.usable, reachable && elapsed < 7200);
+        assert.equal(live.connected, reachable);
+        assert.equal(live.cycle, 558);
+        assert.equal(live.seen, at(elapsed));
+        assert.equal(snapshot.lastDepartureAt, new Date(anchorMs).toISOString());
+      }
+    }
+  }
+  const cached = Object.freeze(departureSnapshot());
+  const expired = liveTiming(cached, at(7201), { ...connected, reachable: false });
+  assert.equal(expired.anchor, null);
+  assert.equal(expired.seen, at(1));
+  const recovered = liveTiming(departureSnapshot({
+    lastDepartureAt: new Date(at(7201)).toISOString(),
+    lastSeenAt: new Date(at(7201)).toISOString(),
+  }), at(7202), connected);
+  assert.equal(recovered.usable, true);
+  assert.equal(recovered.anchor, at(7201));
 });
 
 test('unreachable, stale and uncertain snapshots cannot enable a forecast', () => {

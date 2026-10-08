@@ -461,11 +461,11 @@ def main():
         live.update(lastArrivalAt="2026-10-08T14:40:00Z", lastSeenAt="2026-10-09T15:01:28Z",
                     measurementStatus="uncertain")
         page.clock.run_for(30_500)
-        expect(page.locator("#last-arrival")).to_contain_text("8.10")
+        expect(page.locator("#last-arrival")).to_have_text("—")
         expect(page.locator("#last-update")).to_have_text("18:01:28")
         expect(page.locator("#countdown")).not_to_be_visible()
         expect(page.locator("#position-readout")).not_to_be_visible()
-        expect(page.locator("#countdown-label")).to_contain_text("לסנכרון")
+        expect(page.locator("#countdown-label")).to_have_text("ממתינים למדידת מחזור")
         live.update(lastArrivalAt=None, cycleSeconds=None, measurementStatus="waiting", lastSeenAt="2026-10-09T15:01:58Z")
         page.clock.run_for(30_500)
         expect(page.locator("#countdown-label")).to_have_text("ממתינים למדידת מחזור")
@@ -527,19 +527,44 @@ def main():
         page.locator("#floor-select").select_option("6")
         expect(page.locator("#countdown")).to_be_visible()
         # Cross the two-hour boundary before the next 30-second API poll.
-        page.clock.run_for(21_000)
+        page.clock.pause_at(datetime(2026, 10, 9, 15, 0, 20, tzinfo=timezone.utc))
+        page.locator("#floor-select").select_option("5")
         expect_connection(page, "connected", "מחובר לגלאי")
         expect(page.locator("#countdown")).not_to_be_visible()
         expect(page.locator("#position-readout")).not_to_be_visible()
         expect(page.locator("#countdown-label")).to_contain_text("לסנכרון")
         expect(page.locator("#last-arrival")).to_have_text("16:00:20")
+        page.clock.run_for(1_000)
+        expect(page.locator("#last-arrival")).to_have_text("—")
+        expect(page.locator("#countdown-label")).to_have_text("ממתינים לזיהוי עזיבה בקומה 7")
+        expect(page.locator("#cycle-duration")).to_have_text("09:20")
         detected = page.evaluate("new Date().toISOString()")
         expiring.update(lastDepartureAt=detected, lastSeenAt=detected)
         page.clock.run_for(30_500)
         expect(page.locator("#countdown")).to_be_visible()
         expect(page.locator("#position-readout")).to_be_visible()
         context.close()
-        print("PASS: two-hour detection expiry pauses forecasts between polls; a new detection restores them")
+        print("PASS: two-hour detection expiry removes the old timestamp between polls; a new detection restores forecasting")
+
+        cached = {"mode": "live", "sourceConnected": True, "anchorKind": "departure",
+                  "lastDepartureAt": "2026-10-09T13:00:20Z", "lastArrivalAt": None,
+                  "lastSeenAt": "2026-10-09T14:59:58Z", "cycleSeconds": 558,
+                  "cycleSource": "configured", "measurementStatus": "tracking"}
+        context, page = prepare(320, 640, active=True, live_state=cached)
+        page.locator("#floor-select").select_option("6")
+        context.set_offline(True)
+        expect_connection(page, "unavailable", "אין חיבור לגלאי")
+        page.clock.pause_at(datetime(2026, 10, 9, 15, 0, 20, tzinfo=timezone.utc))
+        page.locator("#floor-select").select_option("5")
+        expect(page.locator("#last-arrival")).to_have_text("16:00:20")
+        page.clock.run_for(1_000)
+        expect(page.locator("#last-arrival")).to_have_text("—")
+        expect(page.locator("#countdown")).not_to_be_visible()
+        expect(page.locator("#position-readout")).not_to_be_visible()
+        expect(page.locator("#cycle-duration")).to_have_text("09:18")
+        expect(page.locator("#last-update")).to_have_text("17:59:58")
+        context.close()
+        print("PASS: cached offline detections older than two hours are hidden without clearing heartbeat or configured cycle")
 
         monitor = {"mode": "live", "sourceConnected": True, "monitorOnly": True,
                    "lastSeenAt": "2026-10-09T14:59:58Z", "measurementStatus": "waiting"}

@@ -3,6 +3,7 @@ import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from unittest.mock import patch
 
 from elevator.state import ObservationStore, iso
 
@@ -182,10 +183,109 @@ class ObservationTests(unittest.TestCase):
         self.assertEqual(state["measurementStatus"], "uncertain")
         self.assertEqual(state["lastDetectionAt"], original["lastDetectionAt"])
         self.assertEqual(state["cycleSeconds"], 558)
-        self.advance_connected(558)
+        self.advance_connected(.001)
+        state = self.store.snapshot()
+        self.assertEqual(state["measurementStatus"], "waiting")
+        self.assertIsNone(state["lastDepartureAt"])
+        self.assertIsNone(state["lastDetectionAt"])
+        self.assertEqual(self.store.events, [])
+        self.assertTrue(state["sourceConnected"])
+        self.advance_connected(557.999)
         self.assertTrue(self.store.observe(self.event("confirmed-again"))["accepted"])
         self.assertEqual(self.store.snapshot()["measurementStatus"], "tracking")
         self.assertEqual(self.store.snapshot()["lastDetectionAt"], iso(self.now))
+
+    def test_snapshot_forgets_departure_strictly_after_two_hours(self):
+        self.tracking()
+        anchor = self.store.last_departure
+        self.advance_connected(7200)
+        at_boundary = self.store.snapshot()
+        self.assertEqual(at_boundary["lastDetectionAt"], iso(anchor))
+        self.assertEqual(at_boundary["measurementStatus"], "uncertain")
+        self.assertEqual(self.store.events, ["two"])
+        last_seen = at_boundary["lastSeenAt"]
+
+        self.now += timedelta(microseconds=1)
+        expired = self.store.snapshot()
+        self.assertIsNone(expired["lastDepartureAt"])
+        self.assertIsNone(expired["lastDetectionAt"])
+        self.assertEqual(expired["measurementStatus"], "waiting")
+        self.assertEqual(self.store.events, [])
+        self.assertTrue(expired["sourceConnected"])
+        self.assertEqual(expired["lastSeenAt"], last_seen)
+        self.assertEqual((expired["cycleSeconds"], expired["cycleSource"]), (558, "configured"))
+
+    def test_heartbeat_and_observation_expire_history_without_a_snapshot(self):
+        for update in ("heartbeat", "observation"):
+            with self.subTest(update=update):
+                self.store = self.new_store()
+                self.tracking()
+                self.advance_connected(7200)
+                self.assertIsNotNone(self.store.last_departure)
+                self.now += timedelta(microseconds=1)
+                if update == "heartbeat":
+                    self.store.heartbeat(self.event())
+                else:
+                    self.assertEqual(self.store.observe(self.event("fresh-seed"))["reason"],
+                                     "awaiting_cycle_match")
+                # Inspect before snapshot(), which must not be needed for cleanup.
+                self.assertIsNone(self.store.last_departure)
+                self.assertEqual(self.store.events, [])
+                self.assertEqual(self.store.last_seen, self.now)
+                self.assertEqual(self.store.snapshot()["measurementStatus"], "waiting")
+
+    def test_expiry_preserves_recent_candidate_pair_and_duplicate_protection(self):
+        self.tracking()
+        self.advance_connected(7100)
+        self.assertEqual(self.store.observe(self.event("fresh-seed"))["reason"], "awaiting_cycle_match")
+        self.advance_connected(100.000001)
+        expired = self.store.snapshot()
+        self.assertIsNone(expired["lastDetectionAt"])
+        self.assertEqual(expired["measurementStatus"], "waiting")
+        self.assertTrue(expired["sourceConnected"])
+        self.assertEqual(self.store.observe(self.event("fresh-seed"))["reason"], "duplicate")
+        self.advance_connected(457.999999)
+        self.assertTrue(self.store.observe(self.event("fresh-pair"))["accepted"])
+        self.assertEqual(self.store.snapshot()["lastDetectionAt"], iso(self.now))
+        self.assertEqual(self.store.snapshot()["measurementStatus"], "tracking")
+        self.assertEqual(self.store.events, ["fresh-pair"])
+
+    def test_expiry_persists_once_instead_of_writing_on_every_poll(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "state.json"
+            self.store = self.new_store(path)
+            self.tracking()
+            self.advance_connected(7200)
+            with patch.object(self.store, "_save", wraps=self.store._save) as save:
+                self.store.snapshot()
+                save.assert_not_called()
+                self.now += timedelta(microseconds=1)
+                self.store.snapshot()
+                save.assert_called_once_with()
+                for _ in range(3):
+                    self.store.snapshot()
+                    self.store.heartbeat(self.event())
+                self.assertFalse(self.store.observe(self.event("pending"))["accepted"])
+                save.assert_called_once_with()
+            saved = json.loads(path.read_text(encoding="utf-8"))
+            self.assertIsNone(saved["lastDepartureAt"])
+            self.assertEqual(saved["events"], [])
+            self.assertIsNone(self.new_store(path).last_departure)
+
+    def test_delayed_observation_cannot_pair_with_candidate_older_than_two_hours(self):
+        for age, accepted in ((7200, True), (7200.000001, False)):
+            with self.subTest(candidate_age=age):
+                self.store = self.new_store(default_cycle_seconds=1799, cycle_tolerance_percent=99)
+                self.assertFalse(self.store.observe(self.event())["accepted"])
+                self.advance_connected(age)
+                # The 90-second delay puts the pair inside the wide two-cycle
+                # window, but candidate retention is measured against server time.
+                observed = self.now - timedelta(seconds=90)
+                result = self.store.observe(self.event("delayed", observedAt=iso(observed)))
+                self.assertEqual(result["accepted"], accepted)
+                if not accepted:
+                    self.assertEqual(result["reason"], "awaiting_cycle_match")
+                    self.assertIsNone(self.store.snapshot()["lastDetectionAt"])
 
     def test_delayed_heartbeat_cannot_resurrect_stale_source(self):
         self.tracking()
@@ -323,6 +423,28 @@ class ObservationTests(unittest.TestCase):
             self.assertTrue(self.store.observe(self.event("fresh-pair"))["accepted"])
             self.assertEqual(self.store.snapshot()["measurementStatus"], "tracking")
 
+    def test_load_keeps_exactly_two_hour_history_and_persists_expiry_afterward(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "state.json"
+            for age, retained in ((7200, True), (7200.000001, False)):
+                with self.subTest(age=age):
+                    departure = self.now - timedelta(seconds=age)
+                    path.write_text(json.dumps({"schemaVersion": 3, "deviceId": "begin17-floor7",
+                        "eventKind": "departure", "lastDepartureAt": iso(departure),
+                        "events": ["old"]}), encoding="utf-8")
+                    restored = self.new_store(path)
+                    # Loading must enforce retention before any heartbeat or poll.
+                    self.assertEqual(restored.last_departure, departure if retained else None)
+                    self.assertEqual(restored.events, ["old"] if retained else [])
+                    saved = json.loads(path.read_text(encoding="utf-8"))
+                    self.assertEqual(saved["lastDepartureAt"], iso(departure) if retained else None)
+                    self.assertEqual(saved["events"], ["old"] if retained else [])
+                    restored.heartbeat(self.event())
+                    state = restored.snapshot()
+                    self.assertEqual(state["measurementStatus"], "uncertain" if retained else "waiting")
+                    self.assertTrue(state["sourceConnected"])
+                    self.assertEqual(state["cycleSeconds"], 558)
+
     def test_legacy_measured_history_is_ignored_even_if_malformed(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "state.json"
@@ -335,7 +457,10 @@ class ObservationTests(unittest.TestCase):
                     self.store.heartbeat(self.event())
                     state = self.store.snapshot()
                     self.assertEqual((state["cycleSeconds"], state["cycleSource"]), (558, "configured"))
-                    self.assertEqual(state["measurementStatus"], "uncertain")
+                    self.assertEqual(state["measurementStatus"], "waiting")
+                    self.assertIsNone(state["lastDepartureAt"])
+                    self.assertIsNone(state["lastDetectionAt"])
+                    self.assertEqual(self.store.events, [])
                     self.assertIsNone(state["latestCycleSeconds"])
                     self.assertFalse(self.store.observe(self.event("first-today"))["accepted"])
                     self.advance_connected(558)

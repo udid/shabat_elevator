@@ -141,7 +141,10 @@ export function liveTiming(live, nowMs, { reachable = false, staleAfterSeconds =
   const anchorKind = live?.anchorKind === undefined ? 'arrival' : live.anchorKind;
   const kindValid = anchorKind === 'departure' || anchorKind === 'arrival';
   const observed = timestamp(anchorKind === 'departure' ? live?.lastDepartureAt : live?.lastArrivalAt);
-  const anchor = kindValid && observed !== null && observed <= nowMs ? observed : null;
+  // Ignore observations older than two hours, including cached/offline responses
+  // and between API polls. At exactly two hours the forecast is already paused.
+  const anchor = kindValid && observed !== null && observed <= nowMs
+    && nowMs - observed <= MAX_DETECTION_AGE_MS ? observed : null;
   const seen = timestamp(live?.lastSeenAt);
   const cycleSource = ['configured', 'default', 'measured'].includes(live?.cycleSource) ? live.cycleSource : null;
   const legacyArrival = live?.anchorKind === undefined && anchorKind === 'arrival';
