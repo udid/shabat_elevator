@@ -25,7 +25,7 @@ WEATHER = {
 }
 
 WAKE_LOCK_MOCK = """(mode) => {
-    const test = window.wakeTest = {requests: 0, releases: 0, locks: [], visibility: 'visible'};
+    const test = window.wakeTest = {mode, requests: 0, releases: 0, locks: [], visibility: 'visible', hiddenRequests: 0};
     Object.defineProperty(document, 'visibilityState', {configurable: true, get: () => test.visibility});
     test.setVisibility = async (value) => {
         test.visibility = value;
@@ -49,9 +49,15 @@ WAKE_LOCK_MOCK = """(mode) => {
         request: async (type) => {
             if (type !== 'screen') throw new Error('Unexpected wake-lock type');
             test.requests++;
-            if (mode === 'denied') throw new DOMException('Denied', 'NotAllowedError');
-            if (mode === 'pending') return new Promise(resolve => {test.resolve = () => resolve(createLock());});
-            return createLock();
+            if (test.visibility !== 'visible') test.hiddenRequests++;
+            if (test.mode === 'denied') throw new DOMException('Denied', 'NotAllowedError');
+            if (test.mode === 'pending') return new Promise((resolve, reject) => {
+                test.resolve = () => resolve(createLock());
+                test.reject = () => reject(new DOMException('No longer active', 'NotAllowedError'));
+            });
+            const lock = createLock();
+            if (test.mode === 'released') await lock.release();
+            return lock;
         }
     }});
 }"""
@@ -100,6 +106,25 @@ def main():
             expect(page.locator("#detector-connection")).to_have_attribute("data-status", status)
             expect(page.locator("#detector-connection-label")).to_have_text(label)
             expect(page.locator("#detector-connection")).to_be_visible()
+
+        def expect_wake_dialog(page, *, unsupported=False):
+            dialog = page.locator("#wake-dialog")
+            expect(dialog).to_be_visible()
+            assert dialog.evaluate("e => e instanceof HTMLDialogElement && e.open && e.matches(':modal')")
+            expect(dialog.get_by_role("heading", name="שמירת המסך דולק אינה פעילה", exact=True)).to_be_visible()
+            for instruction in ("חברו את הטלפון למטען", "כבו מצב חיסכון בסוללה", "השאירו את האתר פתוח בחזית"):
+                expect(dialog.get_by_text(instruction, exact=False)).to_be_in_viewport(ratio=1)
+            expect(page.locator("#wake-dialog-close")).to_have_text("הבנתי")
+            expect(page.locator("#wake-dialog-close")).to_be_in_viewport(ratio=1)
+            expect(dialog).to_be_in_viewport(ratio=1)
+            assert dialog.evaluate("e => e.scrollWidth <= e.clientWidth + 1"), "Wake guidance has horizontal overflow"
+            if unsupported:
+                expect(page.locator("#wake-dialog-description")).to_contain_text("אינה נתמכת")
+                expect(page.locator("#wake-dialog-description")).not_to_contain_text("ינסה שוב")
+                expect(page.locator("#wake-dialog-retry")).not_to_be_visible()
+            else:
+                expect(page.locator("#wake-dialog-retry")).to_be_visible()
+            expect(page.locator("#toast")).not_to_be_visible()
 
         context, page = prepare()
         expect_connection(page, "disabled", "גלאי לא מוגדר")
@@ -156,8 +181,9 @@ def main():
             page.locator("#settings-button").focus()
             page.keyboard.press("Enter")
             expect(page.locator("#settings-panel")).to_be_in_viewport(ratio=1)
-            expect(page.locator("#wake-button")).to_be_in_viewport(ratio=1)
-            expect(page.locator("#wake-button")).to_have_attribute("aria-pressed", "true")
+            expect(page.locator("#wake-button")).to_have_count(0)
+            expect(page.locator("#wake-status")).to_be_in_viewport(ratio=1)
+            expect(page.locator("#wake-status")).to_have_attribute("data-status", "active")
             for selector in ("#route-heading", "#even-route", "#odd-route", ".route-caption"):
                 expect(page.locator(selector)).to_be_in_viewport(ratio=1)
             assert page.locator("#even-route .stop-node").evaluate_all("nodes => nodes.map(node => Number(node.dataset.floor))") == [0, 12, 10, 8, 6, 4, 2, -1]
@@ -170,7 +196,11 @@ def main():
             page.keyboard.press("Tab")
             expect(page.locator("#demo-button")).to_be_focused()
             page.keyboard.press("Tab")
-            expect(page.locator("#wake-button")).to_be_focused()
+            expect(page.locator("#floor-select")).to_be_focused()
+            expect(page.locator("#settings-panel")).not_to_be_visible()
+            page.locator("#settings-button").focus()
+            page.keyboard.press("Enter")
+            expect(page.locator("#settings-panel")).to_be_visible()
             page.keyboard.press("Escape")
             expect(page.locator("#settings-button")).to_be_focused()
             expect(page.locator("#settings-panel")).not_to_be_visible()
@@ -196,67 +226,183 @@ def main():
             context.close()
         print("PASS: all dashboard data visible without scrolling on phones, tablet and desktops; dialog keyboard behavior")
 
-        context, page = prepare(offline=True, wake_mode="denied")
+        context, page = prepare(320, 640, offline=True, wake_mode="denied")
         expect(page.locator("#countdown-label")).to_have_text("זמני הפעילות אינם זמינים")
         expect(page.locator("#countdown")).not_to_be_visible()
         expect(page.locator("#weather-description")).to_contain_text("אינו זמין")
+        expect_wake_dialog(page)
+        page.clock.run_for(5_000)
+        expect_wake_dialog(page)
+        assert page.evaluate("wakeTest.requests") == 1
+        page.screenshot(path=str(ARTIFACTS / "wake-warning-small-phone.png"), full_page=True)
+        page.locator("#wake-dialog-close").click()
+        expect(page.locator("#wake-dialog")).not_to_be_visible()
         toggle_demo(page)
         page.locator("#floor-select").select_option("7")
         expect(page.locator("#countdown")).to_have_text("בקומה שלכם")
         assert page.evaluate("wakeTest.requests") == 1
         page.locator("#settings-button").click()
-        expect(page.locator("#wake-button")).to_have_attribute("aria-pressed", "false")
-        page.locator("#wake-button").click()
-        expect(page.locator("#wake-button")).to_have_attribute("aria-pressed", "false")
-        expect(page.locator("#toast")).to_contain_text("לא אישר")
+        expect(page.locator("#wake-button")).to_have_count(0)
+        expect(page.locator("#wake-status")).to_have_attribute("data-status", "retry")
+        expect(page.locator("#wake-label")).to_have_text("המסך עלול להיכבות")
+        expect(page.locator("#wake-status")).to_be_in_viewport(ratio=1)
+        assert page.locator('#settings-panel').evaluate('e => e.scrollHeight <= e.clientHeight + 1 && e.scrollWidth <= e.clientWidth + 1'), "Denied wake-lock status overflows small-phone settings"
+        expect(page.locator("#toast")).not_to_be_visible()
+        assert page.evaluate("wakeTest.requests") == 1
+        page.clock.run_for(30_000)
         assert page.evaluate("wakeTest.requests") == 2
+        expect(page.locator("#wake-status")).to_have_attribute("data-status", "retry")
+        expect(page.locator("#wake-dialog")).not_to_be_visible()
+        expect(page.locator("#toast")).not_to_be_visible()
+        page.clock.run_for(30_000)
+        assert page.evaluate("wakeTest.requests") == 3
+        expect(page.locator("#wake-dialog")).not_to_be_visible()
+        expect(page.locator("#toast")).not_to_be_visible()
+        page.evaluate("wakeTest.mode = 'granted'")
+        page.clock.run_for(30_000)
+        expect(page.locator("#wake-status")).to_have_attribute("data-status", "active")
+        expect(page.locator("#wake-dialog")).not_to_be_visible()
+        assert page.evaluate("wakeTest.requests") == 4
+        assert page.evaluate("wakeTest.hiddenRequests") == 0
         context.close()
-        print("PASS: service failures and denied screen wake lock do not break the display")
+        print("PASS: persistent wake guidance fits small phones, explains recovery, and stays dismissed during bounded retries")
+
+        context, page = prepare(844, 390, wake_mode="denied")
+        expect_wake_dialog(page)
+        page.screenshot(path=str(ARTIFACTS / "wake-warning-landscape.png"), full_page=True)
+        page.locator("#wake-dialog-close").click()
+        expect(page.locator("#wake-dialog")).not_to_be_visible()
+        context.close()
 
         context, page = prepare()
         assert page.evaluate("wakeTest.requests") == 1
+        expect(page.locator("#wake-button")).to_have_count(0)
+        expect(page.locator("#wake-status")).to_have_attribute("data-status", "active")
         expect(page.locator("#wake-label")).to_have_text("המסך נשאר דולק")
         expect(page.locator("#settings-panel")).not_to_be_visible()
+        expect(page.locator("#wake-dialog")).not_to_be_visible()
         page.locator("#settings-button").click()
-        page.locator("#wake-button").click()
-        expect(page.locator("#wake-button")).to_have_attribute("aria-pressed", "false")
-        assert page.evaluate("wakeTest.releases") == 1
-        page.evaluate("async () => { await wakeTest.setVisibility('hidden'); await wakeTest.setVisibility('visible'); }")
-        assert page.evaluate("wakeTest.requests") == 1
-        page.locator("#wake-button").click()
-        expect(page.locator("#wake-label")).to_have_text("המסך נשאר דולק")
-        assert page.evaluate("wakeTest.requests") == 2
-        page.evaluate("wakeTest.setVisibility('hidden')")
-        expect(page.locator("#wake-label")).to_have_text("ממתין לחזרת האתר למסך")
-        expect(page.locator("#wake-button")).to_have_attribute("aria-pressed", "true")
-        page.evaluate("wakeTest.setVisibility('visible')")
-        expect(page.locator("#wake-label")).to_have_text("המסך נשאר דולק")
-        assert page.evaluate("wakeTest.requests") == 3
+        page.locator("#demo-button").focus()
         page.evaluate("wakeTest.locks.at(-1).release()")
-        expect(page.locator("#wake-button")).to_have_attribute("aria-pressed", "false")
-        expect(page.locator("#toast")).to_contain_text("שחרר")
+        expect(page.locator("#wake-status")).to_have_attribute("data-status", "retry")
+        expect_wake_dialog(page)
+        expect(page.locator("#settings-panel")).not_to_be_visible()
+        page.keyboard.press("Escape")
+        expect(page.locator("#wake-dialog")).not_to_be_visible()
+        expect(page.locator("#settings-button")).to_be_focused()
+        assert page.evaluate("wakeTest.releases") == 1
+        page.clock.run_for(1_000)
+        assert page.evaluate("wakeTest.requests") == 1
+        page.clock.run_for(30_000)
+        expect(page.locator("#wake-status")).to_have_attribute("data-status", "active")
+        expect(page.locator("#wake-dialog")).not_to_be_visible()
+        assert page.evaluate("wakeTest.requests") == 2
+        # Old sentinel events must not clear a newer active lock.
+        page.evaluate("wakeTest.locks[0].dispatchEvent(new Event('release'))")
+        expect(page.locator("#wake-status")).to_have_attribute("data-status", "active")
+        expect(page.locator("#wake-dialog")).not_to_be_visible()
+        page.evaluate("wakeTest.setVisibility('hidden')")
+        expect(page.locator("#wake-status")).to_have_attribute("data-status", "hidden")
+        expect(page.locator("#wake-dialog")).not_to_be_visible()
+        expect(page.locator("#wake-label")).to_have_text("ממתין לחזרת האתר למסך")
+        page.clock.run_for(90_000)
+        assert page.evaluate("wakeTest.requests") == 2
+        page.evaluate("wakeTest.setVisibility('visible')")
+        expect(page.locator("#wake-status")).to_have_attribute("data-status", "active")
         assert page.evaluate("wakeTest.requests") == 3
+        # A new outage after recovery opens guidance again; success closes it.
+        page.evaluate("wakeTest.locks.at(-1).release()")
+        expect_wake_dialog(page)
+        page.clock.run_for(31_000)
+        expect(page.locator("#wake-status")).to_have_attribute("data-status", "active")
+        expect(page.locator("#wake-dialog")).not_to_be_visible()
+        assert page.evaluate("wakeTest.requests") == 4
+        # Hiding during the retry delay cancels it; return retries immediately.
+        page.evaluate("wakeTest.locks.at(-1).release()")
+        expect(page.locator("#wake-status")).to_have_attribute("data-status", "retry")
+        expect_wake_dialog(page)
+        page.locator("#wake-dialog-close").click()
+        page.evaluate("wakeTest.setVisibility('hidden')")
+        expect(page.locator("#wake-dialog")).not_to_be_visible()
+        page.clock.run_for(90_000)
+        assert page.evaluate("wakeTest.requests") == 4
+        page.evaluate("wakeTest.setVisibility('visible')")
+        expect(page.locator("#wake-status")).to_have_attribute("data-status", "active")
+        expect(page.locator("#wake-dialog")).not_to_be_visible()
+        assert page.evaluate("wakeTest.requests") == 5
+        assert page.evaluate("wakeTest.hiddenRequests") == 0
         context.close()
 
         for wake_mode in ("unsupported", "insecure"):
             context, page = prepare(wake_mode=wake_mode)
+            expect_wake_dialog(page, unsupported=True)
+            page.locator("#wake-dialog-close").click()
+            expect(page.locator("#wake-dialog")).not_to_be_visible()
             page.locator("#settings-button").click()
-            expect(page.locator("#wake-button")).to_be_disabled()
-            expect(page.locator("#wake-button")).to_have_attribute("aria-pressed", "false")
+            expect(page.locator("#wake-button")).to_have_count(0)
+            expect(page.locator("#wake-status")).to_have_attribute("data-status", "unsupported")
             expect(page.locator("#wake-label")).to_contain_text("אינה נתמכת")
+            page.evaluate("async () => { await wakeTest.setVisibility('hidden'); await wakeTest.setVisibility('visible'); }")
+            page.clock.run_for(90_000)
             assert page.evaluate("wakeTest.requests") == 0
+            expect(page.locator("#wake-dialog")).not_to_be_visible()
             expect(page.locator("#toast")).not_to_be_visible()
             context.close()
 
         context, page = prepare(wake_mode="pending")
+        expect(page.locator("#wake-status")).to_have_attribute("data-status", "pending")
+        expect(page.locator("#wake-dialog")).not_to_be_visible()
         expect(page.locator("#wake-label")).to_have_text("מבקש להשאיר מסך דולק…")
-        page.locator("#settings-button").click()
-        page.locator("#wake-button").click()
+        page.evaluate("wakeTest.setVisibility('hidden')")
+        expect(page.locator("#wake-status")).to_have_attribute("data-status", "hidden")
+        expect(page.locator("#wake-dialog")).not_to_be_visible()
         page.evaluate("wakeTest.resolve()")
-        expect(page.locator("#wake-button")).to_have_attribute("aria-pressed", "false")
         assert page.evaluate("wakeTest.releases") == 1
+        assert page.evaluate("wakeTest.locks.every(lock => lock.released)")
+        page.clock.run_for(90_000)
+        assert page.evaluate("wakeTest.requests") == 1
+        expect(page.locator("#wake-dialog")).not_to_be_visible()
+        expect(page.locator("#toast")).not_to_be_visible()
+        page.evaluate("wakeTest.mode = 'granted'")
+        page.evaluate("wakeTest.setVisibility('visible')")
+        expect(page.locator("#wake-status")).to_have_attribute("data-status", "active")
+        assert page.evaluate("wakeTest.requests") == 2
+        assert page.evaluate("wakeTest.hiddenRequests") == 0
         context.close()
-        print("PASS: wake lock defaults on, honors manual off, renews on return and handles denial, release, unsupported browsers and cancellation")
+
+        context, page = prepare(wake_mode="pending")
+        expect(page.locator("#wake-dialog")).not_to_be_visible()
+        page.evaluate("async () => { await wakeTest.setVisibility('hidden'); await wakeTest.setVisibility('visible'); }")
+        expect(page.locator("#wake-status")).to_have_attribute("data-status", "pending")
+        expect(page.locator("#wake-dialog")).not_to_be_visible()
+        assert page.evaluate("wakeTest.requests") == 1
+        page.evaluate("wakeTest.reject()")
+        expect(page.locator("#wake-status")).to_have_attribute("data-status", "retry")
+        expect_wake_dialog(page)
+        page.evaluate("wakeTest.mode = 'granted'")
+        page.clock.run_for(1_000)
+        assert page.evaluate("wakeTest.requests") == 1
+        page.clock.run_for(30_000)
+        expect(page.locator("#wake-status")).to_have_attribute("data-status", "active")
+        expect(page.locator("#wake-dialog")).not_to_be_visible()
+        assert page.evaluate("wakeTest.requests") == 2
+        assert page.evaluate("wakeTest.hiddenRequests") == 0
+        context.close()
+
+        context, page = prepare(wake_mode="released")
+        expect(page.locator("#wake-status")).to_have_attribute("data-status", "retry")
+        expect_wake_dialog(page)
+        assert page.evaluate("wakeTest.requests") == 1
+        assert page.evaluate("wakeTest.releases") == 1
+        page.evaluate("wakeTest.mode = 'granted'")
+        page.clock.run_for(1_000)
+        assert page.evaluate("wakeTest.requests") == 1
+        page.clock.run_for(30_000)
+        expect(page.locator("#wake-status")).to_have_attribute("data-status", "active")
+        expect(page.locator("#wake-dialog")).not_to_be_visible()
+        assert page.evaluate("wakeTest.requests") == 2
+        context.close()
+        print("PASS: automatic wake lock has no toggle, retries system releases, pauses while hidden, and handles late grants, pending rejection and released sentinels")
 
         live = {"mode": "live", "sourceConnected": True, "lastArrivalAt": "2026-10-09T14:57:00Z",
                 "cycleSeconds": 570, "lastSeenAt": "2026-10-09T14:59:58Z", "measurementStatus": "tracking"}

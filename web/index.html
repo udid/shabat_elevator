@@ -45,7 +45,7 @@
             <div class="settings-controls">
             <button class="demo-button" id="demo-button" type="button" aria-pressed="false" disabled><span aria-hidden="true">▷</span><span id="demo-button-label">הפעלת הדגמה</span></button>
             <p>תצוגת ניסיון של תנועת המעלית.</p>
-            <button class="wake-toggle" id="wake-button" type="button" aria-describedby="wake-description" aria-pressed="false" disabled><span class="toggle-track" aria-hidden="true"><span></span></span><span id="wake-label">השארת מסך דולק</span></button>
+            <div class="wake-status" id="wake-status" role="status" aria-atomic="true" aria-describedby="wake-description"><span class="wake-dot" aria-hidden="true"></span><span id="wake-label">השארת מסך דולק אוטומטית</span></div>
             <p id="wake-description">מופעל אוטומטית כשהדפדפן תומך בכך והאתר גלוי.</p>
             <p class="settings-update" id="last-update-field" hidden>עדכון אחרון: <strong id="last-update" dir="ltr">—</strong></p>
             </div>
@@ -107,6 +107,18 @@
     <footer><button class="about-button" id="about-button" type="button" aria-haspopup="dialog">איך מחושבת התחזית?</button><a href="https://github.com/udid/shabat_elevator" target="_blank" rel="noopener noreferrer">קוד הפרויקט <span aria-hidden="true">↗</span></a></footer>
   </div>
   <dialog class="about-dialog" id="about-dialog" aria-labelledby="about-title"><form method="dialog"><button class="dialog-close" aria-label="&#1505;&#1490;&#1497;&#1512;&#1492;">&#1505;&#1490;&#1497;&#1512;&#1492;</button></form><h2 id="about-title">איך מחושבת התחזית?</h2><p>מיקרופון שנמצא בדירה בקומה 7 מזהה את הגעת המעלית לקומה לפי הצליל שלה. הזמן בין שתי הגעות משמש לחישוב המחזור. המיקום וההגעה לשאר הקומות מוערכים לפי המסלול וזמני העצירה.</p><p>בגלל אופי הזיהוי לפי צליל, ייתכן שבדקות הראשונות לאחר תחילת פעולת מעלית השבת הנתונים המוצגים עדיין לא יהיו מדויקים.</p><p>אם הוחמץ זיהוי, התחזית ממשיכה לפי זמן המחזור כל עוד הגלאי מחובר ומדווח. הזיהוי הבא מסנכרן מחדש את התחזית. בהדגמה מוצג מחזור בן 9 דקות ו־30 שניות; עצירה כפולה בקומה 0 מחושבת כחלק מהמחזור.</p><p>זמני הפעילות מתחילים 60 דקות לפני כניסת שבת או חג ומסתיימים 60 דקות לאחר צאתם. שבת וחג רצופים מחוברים לחלון פעילות אחד. זמני הכניסה מחושבים 18 דקות לפני השקיעה, והיציאה לפי צאת הכוכבים בשיטת Hebcal, כשהשמש 8.5 מעלות מתחת לאופק.</p><p>המסלול חוזר ברצף. הזמנים בין העצירות יכוילו בהמשך לפי מדידה בבניין.</p><p class="data-attribution">נתוני לוח: <a href="https://www.hebcal.com" target="_blank" rel="noopener noreferrer">Hebcal</a> · מזג אוויר: <a href="https://open-meteo.com" target="_blank" rel="noopener noreferrer">Open-Meteo</a></p></dialog>
+  <dialog class="wake-dialog" id="wake-dialog" aria-labelledby="wake-dialog-title" aria-describedby="wake-dialog-description">
+    <h2 id="wake-dialog-title">שמירת המסך דולק אינה פעילה</h2>
+    <p id="wake-dialog-description"></p>
+    <ul>
+      <li>חברו את הטלפון למטען.</li>
+      <li>כבו מצב חיסכון בסוללה.</li>
+      <li>השאירו את האתר פתוח בחזית.</li>
+      <li>אם צריך, האריכו את זמן כיבוי המסך בהגדרות המכשיר.</li>
+    </ul>
+    <p class="wake-dialog-retry" id="wake-dialog-retry">האתר ינסה שוב אוטומטית כל עוד הוא פתוח בחזית.</p>
+    <form method="dialog"><button id="wake-dialog-close" autofocus>הבנתי</button></form>
+  </dialog>
   <script type="module" src="./layout.js"></script>
   <div class="toast" id="toast" role="status" hidden></div>
   <noscript><p class="noscript">יש להפעיל JavaScript בדפדפן כדי לצפות במידע על המעלית.</p></noscript>

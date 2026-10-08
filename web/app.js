@@ -2,10 +2,11 @@ import { buildRoute, estimateState, nextArrival, liveTiming } from './model.js';
 import { fetchCalendar, getActivityWindow, fetchWeather } from './services.js';
 
 const $ = (id) => document.getElementById(id);
+const WAKE_RETRY_MS = 30_000;
 const state = {
   config: null, profile: null, floor: null, calendar: null, weather: null,
   live: null, liveReachable: false, liveChecked: false, polling: false, manualDemo: false,
-  demoAnchor: null, wakeRequested: true, wakeLock: null, wakePending: false,
+  demoAnchor: null, wakeLock: null, wakePending: false, wakeRetryTimer: null, wakeNoticeShown: false,
   toastTimer: null, lastCalendarFetch: 0, lastWeatherFetch: 0, calendarPending: false,
   weatherPending: false,
 };
@@ -331,36 +332,77 @@ function supportsWakeLock() {
   return window.isSecureContext && typeof navigator.wakeLock?.request === 'function';
 }
 function renderWakeState() {
+  const status = !supportsWakeLock() ? 'unsupported'
+    : document.visibilityState !== 'visible' ? 'hidden'
+    : state.wakeLock && !state.wakeLock.released ? 'active'
+    : state.wakePending ? 'pending' : 'retry';
+  const messages = {
+    unsupported: ['השארת מסך דולק אינה נתמכת', 'אפשר לשנות את זמן כיבוי המסך בהגדרות המכשיר.'],
+    hidden: ['ממתין לחזרת האתר למסך', 'שמירת המסך דולק מתחדשת אוטומטית כשהאתר גלוי.'],
+    active: ['המסך נשאר דולק', 'מופעל אוטומטית. השאירו את האתר גלוי ואת המכשיר מחובר למטען.'],
+    pending: ['מבקש להשאיר מסך דולק…', 'מופעל אוטומטית כשהדפדפן תומך בכך והאתר גלוי.'],
+    retry: ['המסך עלול להיכבות', 'שמירת המסך דולק אינה פעילה כרגע. האתר ינסה שוב אוטומטית.'],
+  };
+  $('wake-status').dataset.status = status;
+  setText('wake-label', messages[status][0]);
+  setText('wake-description', messages[status][1]);
+}
+function clearWakeRetry() {
+  clearTimeout(state.wakeRetryTimer);
+  state.wakeRetryTimer = null;
+}
+function showWakeNotice() {
+  if (state.wakeNoticeShown || state.wakePending || state.wakeLock
+    || document.visibilityState !== 'visible') return;
   const supported = supportsWakeLock();
-  $('wake-button').disabled = !supported;
-  $('wake-button').setAttribute('aria-pressed', String(supported && state.wakeRequested));
-  setText('wake-label', !supported ? 'השארת מסך דולק אינה נתמכת' : state.wakeLock ? 'המסך נשאר דולק' : state.wakeRequested ? state.wakePending ? 'מבקש להשאיר מסך דולק…' : 'ממתין לחזרת האתר למסך' : 'השארת מסך דולק');
-  setText('wake-description', !supported ? 'אפשר לשנות את זמן כיבוי המסך בהגדרות המכשיר.' : state.wakeLock ? 'נעילת המסך פעילה. השאירו את האתר גלוי ואת המכשיר מחובר לחשמל.' : 'אפשר לבקש מהדפדפן לשמור על המסך דולק כשהאתר גלוי.');
+  setText('wake-dialog-description', supported
+    ? 'הדפדפן לא אישר לשמור את המסך דולק, או שהמכשיר הפסיק את השמירה.'
+    : 'שמירה אוטומטית על מסך דולק אינה נתמכת בדפדפן הזה. אפשר לנסות דפדפן מעודכן.');
+  $('wake-dialog-retry').hidden = !supported;
+  // Opening the dialog dismisses settings, so keep its focus return target visible.
+  if ($('settings-panel').contains(document.activeElement)) $('settings-button').focus();
+  $('wake-dialog').showModal();
+  state.wakeNoticeShown = true;
+}
+function scheduleWakeRetry() {
+  if (!supportsWakeLock() || document.visibilityState !== 'visible'
+    || state.wakeLock || state.wakePending || state.wakeRetryTimer !== null) return;
+  showWakeNotice();
+  // A refusal or system release can reflect power-saving policy. Retry at a
+  // bounded rate, only while visible, instead of immediately requesting again.
+  state.wakeRetryTimer = setTimeout(() => {
+    state.wakeRetryTimer = null;
+    acquireWakeLock();
+  }, WAKE_RETRY_MS);
 }
 async function acquireWakeLock() {
-  if (!supportsWakeLock() || !state.wakeRequested || state.wakeLock || state.wakePending || document.visibilityState !== 'visible') return;
+  if (state.wakeLock?.released) state.wakeLock = null;
+  if (!supportsWakeLock()) { showWakeNotice(); return; }
+  if (state.wakeLock || state.wakePending || document.visibilityState !== 'visible') return;
+  clearWakeRetry();
   state.wakePending = true;
   renderWakeState();
   try {
     const lock = await navigator.wakeLock.request('screen');
-    if (!state.wakeRequested) { await lock.release(); return; }
+    // Visibility may change while the browser is processing the request.
+    if (document.visibilityState !== 'visible') { await lock.release(); return; }
+    if (lock.released) return;
     state.wakeLock = lock;
+    state.wakeNoticeShown = false;
+    if ($('wake-dialog').open) $('wake-dialog').close();
     lock.addEventListener('release', () => {
       if (state.wakeLock !== lock) return;
       state.wakeLock = null;
       renderWakeState();
-      // A system release while visible can reflect low power or a platform
-      // policy. Ask again only after the next visibility change/user action.
-      if (state.wakeRequested && document.visibilityState === 'visible') {
-        state.wakeRequested = false;
-        renderWakeState();
-        announce('המכשיר שחרר את נעילת המסך. ניתן להפעיל אותה שוב.');
-      }
+      scheduleWakeRetry();
     });
   } catch {
-    state.wakeRequested = false;
-    announce('הדפדפן לא אישר להשאיר את המסך דולק. בדקו את הגדרות המכשיר.');
-  } finally { state.wakePending = false; renderWakeState(); }
+    // Keep automatic recovery enabled when a browser temporarily refuses.
+  } finally {
+    state.wakePending = false;
+    renderWakeState();
+    scheduleWakeRetry();
+  }
 }
 
 function setupControls() {
@@ -368,17 +410,6 @@ function setupControls() {
     state.manualDemo = !state.manualDemo;
     if (state.manualDemo) state.demoAnchor = Date.now();
     render();
-  });
-  $('wake-button').addEventListener('click', async () => {
-    state.wakeRequested = !state.wakeRequested;
-    if (state.wakeRequested) await acquireWakeLock();
-    else if (state.wakeLock) {
-      const lock = state.wakeLock;
-      state.wakeLock = null;
-      renderWakeState();
-      try { await lock.release(); } catch { /* Already released. */ }
-    }
-    renderWakeState();
   });
   const fullscreen = $('fullscreen-button');
   fullscreen.hidden = !document.fullscreenEnabled;
@@ -394,6 +425,8 @@ function setupControls() {
     fullscreen.title = label;
   });
   document.addEventListener('visibilitychange', () => {
+    clearWakeRetry();
+    renderWakeState();
     if (document.visibilityState !== 'visible') return;
     acquireWakeLock();
     render();
