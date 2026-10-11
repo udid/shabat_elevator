@@ -77,9 +77,9 @@ main { display: grid; grid-template-columns: minmax(0, 1.85fr) minmax(280px, 1fr
 .countdown.message { max-width: 100%; font-size: clamp(56px, 6vw, 88px); line-height: 1.2; letter-spacing: -.8px; }
 .countdown.empty { color: var(--muted); }
 .forecast-message { font-size: clamp(44px, 5vw, 64px); color: var(--text); line-height: 1.4; }
-.countdown-label.outside-hours { font-size: 12px; line-height: 1.5; }
+.countdown-label.outside-hours { font-size: 16px; line-height: 1.5; }
 .arrival-note { color: var(--muted); font-size: 14px; margin-top: 10px; }
-.preparation-note { display: none; max-width: 60ch; margin-top: 18px; color: var(--muted); font-size: 13px; line-height: 1.75; }
+.preparation-note { display: none; max-width: 60ch; margin-top: 18px; color: var(--text); font-size: 13px; line-height: 1.75; }
 .preparation-note p + p { margin-top: 10px; }
 .arrival-note:not([hidden]) + .preparation-note { display: block; }
 .elevator-visual { border-top: 1px solid var(--line); padding: 18px 0; }
