@@ -199,6 +199,10 @@ function renderDetectorConnection(now) {
 function render() {
   if (!state.config) return;
   const now = new Date();
+  if (state.manualDemo && now.getTime() - state.demoAnchor >= 2 * state.profile.cycleSeconds * 1000) {
+    state.manualDemo = false;
+    state.demoAnchor = null;
+  }
   renderDetectorConnection(now);
   renderClock(now);
   const activity = activityAt(now);
@@ -409,7 +413,7 @@ async function acquireWakeLock() {
 function setupControls() {
   $('demo-button').addEventListener('click', () => {
     state.manualDemo = !state.manualDemo;
-    if (state.manualDemo) state.demoAnchor = Date.now();
+    state.demoAnchor = state.manualDemo ? Date.now() : null;
     render();
   });
   const fullscreen = $('fullscreen-button');
