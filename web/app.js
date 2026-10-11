@@ -138,13 +138,11 @@ function renderCalendar(activity) {
     setText('havdalah-time', formatTime(span.eventEnd));
     setText('candle-date', shortDate(span.eventStart));
     setText('havdalah-date', shortDate(span.eventEnd));
-    setText('schedule-note', `פעילות המעלית: ${shortDate(span.start)}, ${formatTime(span.start)} עד ${shortDate(span.end)}, ${formatTime(span.end)}`);
   } else if (activity.status !== 'loading') {
     setText('candle-time', '--:--');
     setText('havdalah-time', '--:--');
     setText('candle-date', '');
     setText('havdalah-date', '');
-    setText('schedule-note', 'זמני שבת וחג אינם זמינים');
   }
   const parasha = state.calendar?.parasha;
   setText('parasha-name', parasha?.title || (state.calendar?.status === 'unavailable' ? 'לא זמין כרגע' : '—'));
@@ -460,7 +458,6 @@ async function init() {
     if (!Array.isArray(config.floors) || !config.floors.length || !config.timezone) throw new Error('Invalid configuration');
     state.config = config;
     state.profile = buildRoute(config);
-    setText('city-name', config.city);
     setupFloorPicker();
     setupRoute();
     setupControls();
