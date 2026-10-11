@@ -181,9 +181,9 @@ def main():
             counter = page.locator("#countdown").bounding_box()
             content = page.locator(".arrival-content").bounding_box()
             assert counter["x"] >= content["x"] - 1 and counter["x"] + counter["width"] <= content["x"] + content["width"] + 1, f"Counter clipped on {name}"
-            picker = page.locator("#floor-select").bounding_box()
+            about = page.locator("#about-button").bounding_box()
             clock = page.locator("#wall-clock").bounding_box()
-            assert abs(picker["y"] + picker["height"] / 2 - clock["y"] - clock["height"] / 2) < 1, f"Clock and floor picker misaligned on {name}"
+            assert abs(about["y"] + about["height"] / 2 - clock["y"] - clock["height"] / 2) < 1 and clock["x"] >= about["x"] + about["width"], f"Clock must sit to the right of the about button on {name}"
             page.locator("#about-button").click()
             expect(page.locator("#about-dialog")).to_be_visible()
             page.keyboard.press("Escape")

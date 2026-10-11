@@ -118,7 +118,7 @@ function renderClock(now) {
   const parts = new Intl.DateTimeFormat('en-GB', { timeZone: state.config.timezone, hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).formatToParts(now);
   const part = (name) => parts.find((item) => item.type === name)?.value || '00';
   const clock = $('wall-clock');
-  clock.replaceChildren(document.createTextNode(`${part('hour')}:${part('minute')}`), Object.assign(document.createElement('span'), { textContent: part('second') }));
+  setText('wall-clock', `${part('hour')}:${part('minute')}:${part('second')}`);
   clock.dateTime = now.toISOString();
   setText('hebrew-date', new Intl.DateTimeFormat('he-IL-u-ca-hebrew', { timeZone: state.config.timezone, day: 'numeric', month: 'long', year: 'numeric' }).format(now));
   setText('gregorian-date', new Intl.DateTimeFormat('he-IL', { timeZone: state.config.timezone, weekday: 'long', day: 'numeric', month: 'numeric' }).format(now));

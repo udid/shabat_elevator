@@ -63,7 +63,7 @@
     <main>
       <section class="elevator-card" aria-label="תחזית המעלית">
         <div class="elevator-main">
-          <div class="section-topline"><div class="floor-picker"><label for="floor-select">הקומה שלכם</label><div class="select-wrap"><select id="floor-select"><option value="">בחירת קומה</option></select><span aria-hidden="true">⌄</span></div></div><div class="mode-banner" id="mode-banner" role="status"><span class="mode-tag" id="mode-tag">טוען</span><span id="mode-copy"></span></div><div class="dashboard-clock"><time class="wall-clock" id="wall-clock" dir="ltr">--:--<span>--</span></time></div></div>
+          <div class="section-topline"><div class="floor-picker"><label for="floor-select">הקומה שלכם</label><div class="select-wrap"><select id="floor-select"><option value="">בחירת קומה</option></select><span aria-hidden="true">⌄</span></div></div><div class="mode-banner" id="mode-banner" role="status"><span class="mode-tag" id="mode-tag">טוען</span><span id="mode-copy"></span></div></div>
           <div class="arrival-layout" id="arrival-layout">
             <div class="arrival-content">
               <div class="floor-picker-space" aria-hidden="true"></div>
@@ -109,7 +109,10 @@
 
 
     </main>
-    <footer><button class="about-button" id="about-button" type="button" aria-haspopup="dialog">איך מחושבת התחזית?</button><a href="https://github.com/udid/shabat_elevator" target="_blank" rel="noopener noreferrer">קוד הפרויקט <span aria-hidden="true">↗</span></a></footer>
+    <footer>
+      <div class="footer-about"><time class="wall-clock" id="wall-clock" dir="ltr" title="השעה כעת">--:--:--</time><button class="about-button" id="about-button" type="button" aria-haspopup="dialog">איך מחושבת התחזית?</button></div>
+      <a href="https://github.com/udid/shabat_elevator" target="_blank" rel="noopener noreferrer">קוד הפרויקט <span aria-hidden="true">↗</span></a>
+    </footer>
   </div>
   <dialog class="about-dialog" id="about-dialog" aria-labelledby="about-title"><form method="dialog"><button class="dialog-close" aria-label="&#1505;&#1490;&#1497;&#1512;&#1492;">&#1505;&#1490;&#1497;&#1512;&#1492;</button></form><h2 id="about-title">איך מחושבת התחזית?</h2><p>מיקרופון שנמצא בדירה בקומה 7 מזהה את הגעת המעלית לקומה לפי הצליל שלה. הזמן בין שתי הגעות משמש לחישוב המחזור. המיקום וההגעה לשאר הקומות מוערכים לפי המסלול וזמני העצירה.</p><p>בגלל אופי הזיהוי לפי צליל, ייתכן שבדקות הראשונות לאחר תחילת פעולת מעלית השבת הנתונים המוצגים עדיין לא יהיו מדויקים.</p><p>אם הוחמץ זיהוי, התחזית ממשיכה לפי זמן המחזור כל עוד הגלאי מחובר ומדווח. הזיהוי הבא מסנכרן מחדש את התחזית. בהדגמה מוצג מחזור בן 9 דקות ו־30 שניות; עצירה כפולה בקומה 0 מחושבת כחלק מהמחזור.</p><p>זמני הפעילות מתחילים 10 דקות לפני כניסת שבת או חג ומסתיימים 10 דקות לאחר צאתם. שבת וחג רצופים מחוברים לחלון פעילות אחד. זמני הכניסה מחושבים 18 דקות לפני השקיעה, והיציאה לפי צאת הכוכבים בשיטת Hebcal, כשהשמש 8.5 מעלות מתחת לאופק.</p><p>המסלול חוזר ברצף. הזמנים בין העצירות יכוילו בהמשך לפי מדידה בבניין.</p><p class="data-attribution">נתוני לוח: <a href="https://www.hebcal.com" target="_blank" rel="noopener noreferrer">Hebcal</a> · מזג אוויר: <a href="https://open-meteo.com" target="_blank" rel="noopener noreferrer">Open-Meteo</a></p></dialog>
   <dialog class="wake-dialog" id="wake-dialog" aria-labelledby="wake-dialog-title" aria-describedby="wake-dialog-description">

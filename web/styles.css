@@ -61,9 +61,7 @@ main { display: grid; grid-template-columns: minmax(0, 1.85fr) minmax(280px, 1fr
 .mode-tag { color: var(--accent); background: var(--accent-soft); padding: 4px 9px; border-radius: 6px; font-size: 12px; white-space: nowrap; }
 .live-mode .mode-tag { color: var(--connected); background: #2c3930; }
 .disconnected .mode-tag { color: var(--disconnected); background: #403034; }
-.dashboard-clock { margin-inline-start: auto; flex-shrink: 0; }
-.wall-clock { font-size: 23px; font-weight: 500; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.wall-clock span { font-size: 12px; color: var(--muted); margin-left: 4px; }
+.wall-clock { flex-shrink: 0; font-size: 12px; font-weight: 500; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .arrival-layout { display: flex; flex-direction: column; gap: 22px; flex: 1; padding-top: 24px; }
 .arrival-content { display: flex; flex-direction: column; justify-content: center; flex: 1; min-width: 0; }
 .floor-picker, .floor-picker-space { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; }
@@ -79,7 +77,7 @@ main { display: grid; grid-template-columns: minmax(0, 1.85fr) minmax(280px, 1fr
 .countdown.message { max-width: 100%; font-size: clamp(56px, 6vw, 88px); line-height: 1.2; letter-spacing: -.8px; }
 .countdown.empty { color: var(--muted); }
 .forecast-message { font-size: clamp(44px, 5vw, 64px); color: var(--text); line-height: 1.4; }
-.countdown-label.outside-hours { font-size: clamp(18px, 2.2vw, 22px); line-height: 1.3; }
+.countdown-label.outside-hours { font-size: 12px; line-height: 1.5; }
 .arrival-note { color: var(--muted); font-size: 14px; margin-top: 10px; }
 .preparation-note { display: none; max-width: 60ch; margin-top: 18px; color: var(--muted); font-size: 13px; line-height: 1.75; }
 .preparation-note p + p { margin-top: 10px; }
@@ -151,6 +149,7 @@ main { display: grid; grid-template-columns: minmax(0, 1.85fr) minmax(280px, 1fr
 .route-key { width: 7px; height: 7px; border-radius: 2px; background: var(--accent); }
 .double-stop { margin-inline-start: 6px; color: var(--accent); direction: ltr; }
 footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; border-top: 1px solid var(--line); padding-top: 10px; color: var(--muted); font-size: 12px; flex-shrink: 0; }
+.footer-about { display: flex; align-items: center; gap: 12px; }
 .about-button { border: 0; background: none; padding: 7px 0; font-size: inherit; color: inherit; }
 footer a:hover, .about-button:hover { color: var(--accent); }
 .about-dialog { width: min(640px, calc(100% - 32px)); max-height: 85dvh; padding: 24px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); color: var(--text); line-height: 1.8; }
@@ -192,8 +191,6 @@ footer a:hover, .about-button:hover { color: var(--accent); }
   .section-topline { gap: 8px; }
   .mode-banner { gap: 4px 8px; font-size: 12px; }
   .mode-tag { padding: 3px 7px; }
-  .wall-clock { font-size: 20px; }
-  .wall-clock span { font-size: 11px; }
   .arrival-layout { padding-top: 16px; gap: 12px; }
   .floor-picker { gap: 10px; }
   .floor-picker-space { margin-bottom: 16px; }
@@ -275,8 +272,6 @@ footer a:hover, .about-button:hover { color: var(--accent); }
   .elevator-main { padding: 10px 16px 0; }
   .mode-banner { font-size: 11px; }
   .mode-tag { font-size: 11px; padding: 3px 6px; }
-  .wall-clock { font-size: 20px; }
-  .wall-clock span { font-size: 11px; }
   .arrival-layout { display: grid; grid-template-columns: minmax(0, 1fr) 106px; align-items: center; gap: 14px; padding: 8px 0; }
   .arrival-layout.without-position { grid-template-columns: 1fr; }
   .floor-picker { gap: 8px; }
