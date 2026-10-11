@@ -229,7 +229,7 @@ function render() {
   $('mode-banner').classList.toggle('disconnected', !simulation && !live.connected);
   setText('mode-tag', simulation ? 'הדגמה' : live.monitorOnly ? 'מצב בדיקה' : '');
   setText('mode-copy', simulation ? 'הנתונים אינם מהמעלית' : live.monitorOnly
-    ? `טרם הופעל זיהוי בקומה 7${live.connected ? '' : ' · אין חיבור לחיישן'}`
+    ? `טרם הופעל זיהוי${live.connected ? '' : ' · אין חיבור לחיישן'}`
     : '');
   $('demo-button').disabled = false;
   $('demo-button').setAttribute('aria-pressed', String(demo));
@@ -269,8 +269,8 @@ function render() {
       setText('countdown-label', activity.status === 'loading' ? 'טוען את זמני השבת והחג' : 'זמני הפעילות אינם זמינים');
     } else if (!simulation) {
       const waiting = live.anchor === null || live.cycle === null || live.live?.measurementStatus === 'waiting';
-      const waitingLabel = live.anchorKind === 'departure' ? 'ממתינים לזיהוי עזיבה בקומה 7' : 'ממתינים למדידת מחזור';
-      setText('countdown-label', live.monitorOnly ? 'מצב בדיקה — טרם הופעל זיהוי בקומה 7'
+      const waitingLabel = live.anchorKind === 'departure' ? 'ממתינים לזיהוי' : 'ממתינים למדידת מחזור';
+      setText('countdown-label', live.monitorOnly ? 'מצב בדיקה — טרם הופעל זיהוי'
         : !live.connected ? 'התחזית אינה זמינה' : waiting ? waitingLabel : 'התחזית ממתינה לסנכרון');
     }
   } else if (state.floor === null) {
@@ -286,7 +286,7 @@ function render() {
     }
   }
 
-  setText('last-arrival-label', simulation ? 'זיהוי מדומה בקומה 7' : anchorKind === 'departure' ? 'עזיבה אחרונה בקומה 7' : 'הגעה אחרונה לקומה 7');
+  setText('last-arrival-label', simulation ? 'זיהוי מדומה אחרון' : 'זיהוי אחרון');
   setText('last-arrival', observationTime(anchor, now));
   setText('cycle-label', simulation ? 'מחזור הדגמה' : live.cycleSource === 'configured' ? 'מחזור לפי כיול' : live.cycleSource === 'default' ? 'מחזור ברירת מחדל' : live.cycleSource === 'measured' ? 'מחזור חציוני' : 'מחזור');
   setText('cycle-duration', cycle ? duration(cycle) : '—');

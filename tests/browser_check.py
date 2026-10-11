@@ -507,7 +507,7 @@ def main():
         expect_connection(page, "connected", "מחובר לגלאי")
         expect(page.locator("#cycle-label")).to_have_text("מחזור לפי כיול")
         expect(page.locator("#cycle-duration")).to_have_text("09:18")
-        expect(page.locator("#countdown-label")).to_have_text("ממתינים לזיהוי עזיבה בקומה 7")
+        expect(page.locator("#countdown-label")).to_have_text("ממתינים לזיהוי")
         expect(page.locator("#countdown")).not_to_be_visible()
         expect(page.locator("#position-readout")).not_to_be_visible()
         # A candidate/heartbeat alone does not publish an anchor or enable a forecast.
@@ -549,7 +549,7 @@ def main():
         expect(page.locator("#last-arrival")).to_have_text("16:00:20")
         page.clock.run_for(1_000)
         expect(page.locator("#last-arrival")).to_have_text("—")
-        expect(page.locator("#countdown-label")).to_have_text("ממתינים לזיהוי עזיבה בקומה 7")
+        expect(page.locator("#countdown-label")).to_have_text("ממתינים לזיהוי")
         expect(page.locator("#cycle-duration")).to_have_text("09:20")
         detected = page.evaluate("new Date().toISOString()")
         expiring.update(lastDepartureAt=detected, lastSeenAt=detected)
