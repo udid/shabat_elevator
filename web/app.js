@@ -258,6 +258,7 @@ function render() {
   $('countdown').hidden = !available || state.floor === null;
   $('arrival-note').hidden = true;
   $('countdown-label').classList.toggle('forecast-message', !available || state.floor === null);
+  $('countdown-label').classList.toggle('outside-hours', !available && !scheduled && !demo && scheduleKnown);
   if (!available) {
     setCountdown('--:--', false, true);
     if (!scheduled && !demo && scheduleKnown) {
