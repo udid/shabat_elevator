@@ -133,7 +133,7 @@ function timestamp(value) {
 }
 
 /** Validate a sensor snapshot without advancing or inventing its observation. */
-export function liveTiming(live, nowMs, { reachable = false, staleAfterSeconds = 90 } = {}) {
+export function liveTiming(live, nowMs, { reachable = false, staleAfterSeconds = 180 } = {}) {
   finite(nowMs, 'nowMs');
   positive(staleAfterSeconds, 'staleAfterSeconds');
   // A legacy arrival snapshot is supported only when its event kind is absent.

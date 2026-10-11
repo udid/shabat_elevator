@@ -303,7 +303,7 @@ class ObservationTests(unittest.TestCase):
         self.tracking()
         self.now += timedelta(seconds=200)
         with self.assertRaisesRegex(ValueError, "too old"):
-            self.store.heartbeat(self.event(observedAt=iso(self.now - timedelta(seconds=110))))
+            self.store.heartbeat(self.event(observedAt=iso(self.now - timedelta(seconds=181))))
         self.assertFalse(self.store.snapshot()["sourceConnected"])
 
     def test_dropout_discards_candidates_even_without_a_snapshot(self):
@@ -355,7 +355,10 @@ class ObservationTests(unittest.TestCase):
 
     def test_snapshot_remembers_dropout_when_heartbeat_returns(self):
         self.tracking()
-        self.now += timedelta(seconds=100)
+        self.now += timedelta(seconds=180)
+        self.assertEqual(self.store.snapshot()["measurementStatus"], "tracking")
+        self.assertTrue(self.store.snapshot()["sourceConnected"])
+        self.now += timedelta(microseconds=1)
         self.assertEqual(self.store.snapshot()["measurementStatus"], "stale")
         self.store.heartbeat(self.event())
         self.assertEqual(self.store.snapshot()["measurementStatus"], "uncertain")

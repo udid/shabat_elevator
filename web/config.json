@@ -13,7 +13,7 @@
   "longitude": 34.847,
   "sourceMode": "live",
   "liveApiUrl": "https://elevator-api.udidaniel.com",
-  "staleAfterSeconds": 90,
+  "staleAfterSeconds": 180,
   "arrivalGraceSeconds": 60,
   "schedulePaddingMinutes": 10,
   "candleLightingMinutes": 18,

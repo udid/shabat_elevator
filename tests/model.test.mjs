@@ -142,7 +142,7 @@ const departureSnapshot = (overrides = {}) => ({
   cycleSource: 'configured', latestCycleSeconds: null, measurementStatus: 'tracking', calibrated: false,
   ...overrides,
 });
-const connected = { reachable: true, staleAfterSeconds: 90 };
+const connected = { reachable: true, staleAfterSeconds: 180 };
 
 test('a confirmed departure forecasts using the configured cycle', () => {
   const live = liveTiming(departureSnapshot(), at(2), connected);
@@ -259,9 +259,17 @@ test('unreachable, stale and uncertain snapshots cannot enable a forecast', () =
   assert.equal(unreachable.usable, false);
   assert.equal(unreachable.connected, false);
   assert.equal(unreachable.anchor, anchorMs);
-  const stale = liveTiming(snapshot, at(92), connected);
-  assert.equal(stale.connected, false);
-  assert.equal(stale.usable, false);
+  for (const options of [connected, { reachable: true }]) {
+    for (const age of [90, 179.999, 180]) {
+      const fresh = liveTiming(snapshot, at(1 + age), options);
+      assert.equal(fresh.connected, true);
+      assert.equal(fresh.usable, true);
+      assert.equal(fresh.anchor, anchorMs);
+    }
+    const stale = liveTiming(snapshot, at(181.001), options);
+    assert.equal(stale.connected, false);
+    assert.equal(stale.usable, false);
+  }
   for (const measurementStatus of ['stale', 'uncertain', 'waiting']) {
     const blocked = liveTiming(departureSnapshot({
       measurementStatus, lastSeenAt: new Date(at(1140)).toISOString(),

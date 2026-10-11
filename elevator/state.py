@@ -40,7 +40,7 @@ def valid_cycle(value: object) -> bool:
 
 class ObservationStore:
     def __init__(self, path: Path | None = None, *, device_id="begin17-floor7", clock=utc_now,
-                 stale_after=90, arrival_grace=60, default_cycle_seconds=None,
+                 stale_after=180, arrival_grace=60, default_cycle_seconds=None,
                  cycle_tolerance_percent=15,
                  event_kind="departure"):
         if event_kind != "departure":
