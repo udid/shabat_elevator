@@ -15,7 +15,7 @@
   "liveApiUrl": "https://elevator-api.udidaniel.com",
   "staleAfterSeconds": 90,
   "arrivalGraceSeconds": 60,
-  "schedulePaddingMinutes": 60,
+  "schedulePaddingMinutes": 10,
   "candleLightingMinutes": 18,
   "havdalahMinutes": null
 }

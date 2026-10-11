@@ -135,6 +135,15 @@ class SameChimeLevelTests(unittest.TestCase):
 
 
 class SuppressionEvidenceTests(unittest.TestCase):
+    def test_same_band_weaker_train_is_suppressed_even_when_it_has_its_own_weaker_tier(self):
+        times=[{'time':time} for time in (100,670,1240)]
+        band={'frequencyLowHz':900,'frequencyHighHz':1200}
+        strong={'sessionId':0,'prototype':np.array([1.,0.]),'settings':band,
+                'intensitySeparation':{'clear':True},'excludedWeakEvents':times}
+        candidate={'sessionId':0,'prototype':np.array([1.,0.]),'settings':band,
+                   'intensitySeparation':{'clear':True},'matchingEvents':times}
+        self.assertTrue(_is_demonstrably_weaker(candidate,strong,3))
+
     def test_different_sound_at_the_same_weak_chime_times_is_not_suppressed(self):
         times = [{"time": time} for time in (100, 670, 1240)]
         strong = {"sessionId": 0, "prototype": np.array([1.0, 0.0]),

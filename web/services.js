@@ -135,14 +135,14 @@ export async function fetchCalendar(config, date = new Date()) {
 }
 
 /** The active display window includes padding only at the two ends of a continuous holiday. */
-export function getActivityWindow(calendar, now = new Date(), paddingMinutes = 60) {
+export function getActivityWindow(calendar, now = new Date(), paddingMinutes = 10) {
   const current = new Date(now).getTime();
   const empty = { active: false, window: null, nextWindow: null, windows: [] };
   if (!calendar || calendar.status !== "live") return { ...empty, status: "unavailable" };
   if (!Number.isFinite(current) || !Number.isFinite(timestamp(calendar.expiresAt)) || current >= timestamp(calendar.expiresAt)) {
     return { ...empty, status: "expired" };
   }
-  const padding = Number.isFinite(paddingMinutes) ? Math.max(0, paddingMinutes) * 60_000 : 60 * 60_000;
+  const padding = Number.isFinite(paddingMinutes) ? Math.max(0, paddingMinutes) * 60_000 : 10 * 60_000;
   const windows = [];
   for (const span of calendar.spans || []) {
     const start = timestamp(span.start), end = timestamp(span.end);

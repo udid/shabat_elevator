@@ -56,10 +56,21 @@ DETECTOR_FIELDS = {
     "profile", "channel", "frequencyLowHz", "frequencyHighHz", "snrThresholdDb",
     "noiseBandPower", "minimumEventBandDbfs", "minimumRmsDbfs",
     "minimumEventSeconds", "maximumEventSeconds", "mergeGapSeconds", "rearmSeconds",
+    "minimumTonalFraction",
 }
 
 
 class RuntimeConfigurationTests(unittest.TestCase):
+    def test_new_profile_requires_filters_and_round_trips_without_dropping_them(self):
+        report=ready_report()
+        report['parameters']['algorithm']='hann_spectral_band_snr_level_v3'
+        report['parameters']['minimumFrameBandDbfs']=-44.5
+        runtime=build_runtime_config(report)
+        self.assertEqual(runtime['detector']['profile'],'band_level_snr_v2')
+        self.assertEqual(validate_runtime_config(runtime),runtime)
+        del runtime['detector']['minimumFrameBandDbfs']
+        with self.assertRaises(ValueError):validate_runtime_config(runtime)
+
     def test_compact_allowlist_preserves_operating_values_without_history_or_arrays(self):
         report = ready_report()
         original = copy.deepcopy(report)
@@ -77,7 +88,7 @@ class RuntimeConfigurationTests(unittest.TestCase):
             self.assertEqual(runtime["detector"][key], report["parameters"][key])
         serialized = json.dumps(runtime, allow_nan=False)
         for forbidden in ("PRIVATE_SOURCE_PATH", "PRIVATE_HISTORY_HASH", "2023-12-23", "spectralFingerprint",
-                          "sourceFile", "referenceNoisePowerByBin", "minimumTonalFraction"):
+                          "sourceFile", "referenceNoisePowerByBin"):
             self.assertNotIn(forbidden, serialized)
         self.assertLess(len(serialized), 3000)
         self.assertEqual(report, original, "Export must not remove fields from the detailed report")
@@ -161,6 +172,8 @@ class RuntimeConfigurationTests(unittest.TestCase):
             "maximumEventSeconds": (.1, 300, math.inf),
             "mergeGapSeconds": (-1, math.nan),
             "rearmSeconds": (0, -1, math.nan),
+            "minimumTonalFraction": (-.01, 1.01, True, math.nan),
+            "minimumFrameBandDbfs": (1, True, math.nan),
         }
         for key, values in cases.items():
             for value in values:

@@ -200,15 +200,22 @@ class ObservationStore:
             while self.candidates and (observed - self.candidates[0][0] > horizon
                                        or self.candidates[0][0] < cutoff):
                 self.candidates.popleft()
+            # Once acquired, only the confirmed phase may advance the anchor.
+            # Off-phase candidates cannot form a competing periodic train.
+            phase_locked = self._anchor_current and self.last_departure is not None
+            if phase_locked and observed - self.last_departure > self._cycle_windows[-1][1]:
+                self._anchor_current = False
+                self.candidates.clear()
+                phase_locked = False
+            references = [self.last_departure] if phase_locked else [previous for previous, _ in self.candidates]
             matches = any(lower <= observed - previous <= upper
-                          for previous, _ in self.candidates
-                          for lower, upper in self._cycle_windows)
+                          for previous in references for lower, upper in self._cycle_windows)
             self.candidates.append((observed, event_id))
             interval = observed - self.last_departure if self.last_departure else None
             if interval is not None and interval < self._cycle_windows[0][0]:
                 return {"accepted": False, "reason": "same_stop" if interval.total_seconds() < 30 else "too_soon"}
             if not matches:
-                return {"accepted": False, "reason": "awaiting_cycle_match"}
+                return {"accepted": False, "reason": "phase_mismatch" if phase_locked else "awaiting_cycle_match"}
 
             self.note = None
             self.last_departure = observed

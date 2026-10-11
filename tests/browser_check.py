@@ -158,7 +158,11 @@ def main():
         context.close()
         print("PASS: no default floor, explicit demo, saved selection and reset")
 
-        for name, width, height in (("phone", 390, 844), ("small-phone", 320, 640), ("phone-short", 375, 667), ("tablet", 768, 1024), ("laptop", 1366, 768), ("desktop-short", 1280, 600), ("phone-landscape", 844, 390)):
+        for name, width, height in (("phone", 390, 844), ("small-phone", 320, 640), ("phone-short", 375, 667), ("tablet", 768, 1024), ("laptop", 1366, 768), ("desktop-short", 1280, 600), ("phone-landscape", 844, 390), ("small-landscape", 667, 375)):
+            context, page = prepare(width, height)
+            expect(page.locator("#countdown-label")).to_have_text("מחוץ לשעות הפעילות")
+            assert page.evaluate("document.documentElement.scrollHeight <= innerHeight && document.documentElement.scrollWidth <= innerWidth"), f"Inactive dashboard overflow on {name}"
+            context.close()
             context, page = prepare(width, height, active=True)
             expect(page.locator("#floor-select")).to_have_value("")
             expect(page.locator("#countdown-label")).to_have_text("בחרו קומה להצגת התחזית")
@@ -170,9 +174,16 @@ def main():
             assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), f"Horizontal overflow on {name}"
             assert page.evaluate("document.documentElement.scrollHeight <= innerHeight"), f"Vertical overflow on {name}"
             for selector in ("#floor-select", "#countdown", "#current-floor", "#last-arrival", "#cycle-duration", "#mode-tag", "#mode-copy", "#candle-time", "#havdalah-time", "#parasha-name", "#parasha-detail", "#hebrew-date", "#gregorian-date", "#wall-clock", "#weather-temperature", "#fullscreen-button", "#settings-button", "#detector-connection"):
-                expect(page.locator(selector)).to_be_in_viewport(ratio=1)
+                # CSS-scaled digits can yield an intersection ratio a few float ulps below 1.
+                expect(page.locator(selector)).to_be_in_viewport(ratio=0.999999 if selector == "#countdown" else 1)
             clipped = page.evaluate("""() => [...document.querySelectorAll('.elevator-card,.info-card,.route-panel')].filter(e => e.scrollHeight > e.clientHeight + 1 || e.scrollWidth > e.clientWidth + 1).map(e => e.className)""")
             assert not clipped, f"Clipped card content on {name}: {clipped}"
+            counter = page.locator("#countdown").bounding_box()
+            content = page.locator(".arrival-content").bounding_box()
+            assert counter["x"] >= content["x"] - 1 and counter["x"] + counter["width"] <= content["x"] + content["width"] + 1, f"Counter clipped on {name}"
+            picker = page.locator("#floor-select").bounding_box()
+            clock = page.locator("#wall-clock").bounding_box()
+            assert abs(picker["y"] + picker["height"] / 2 - clock["y"] - clock["height"] / 2) < 1, f"Clock and floor picker misaligned on {name}"
             page.locator("#about-button").click()
             expect(page.locator("#about-dialog")).to_be_visible()
             page.keyboard.press("Escape")
@@ -220,7 +231,9 @@ def main():
                 if demo:
                     toggle_demo(page)
                     page.locator("#floor-select").select_option("7")
-                assert page.evaluate("document.documentElement.scrollHeight <= innerHeight && document.documentElement.scrollWidth <= innerWidth"), f"Overflow on {name}, offline, demo={demo}"
+                dimensions = page.evaluate("({width: innerWidth, height: innerHeight, scrollWidth: document.documentElement.scrollWidth, scrollHeight: document.documentElement.scrollHeight})")
+                page.screenshot(path=str(ARTIFACTS / f"{name}-offline-{demo}.png"), full_page=True)
+                assert dimensions["scrollHeight"] <= height and dimensions["scrollWidth"] <= width, f"Overflow on {name}, offline, demo={demo}: {dimensions}"
                 clipped = page.evaluate("""() => [...document.querySelectorAll('.elevator-card,.info-card,.route-panel')].filter(e => e.scrollHeight > e.clientHeight + 1 || e.scrollWidth > e.clientWidth + 1).map(e => e.className)""")
                 assert not clipped, f"Clipped offline content on {name}: {clipped}"
             context.close()

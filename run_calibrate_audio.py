@@ -44,20 +44,21 @@ class CalibrationConfig:
     min_period_seconds: float = 300.0
     max_period_seconds: float = 1800.0
     session_gap_seconds: float = 3600.0
+    analysis_window_seconds: float = 7200.0
     timing_tolerance_seconds: float = 3.0
     min_events: int = 3
     min_event_seconds: float = 0.10
     max_event_seconds: float = 20.0
-    merge_gap_seconds: float = 1.5
+    merge_gap_seconds: float = 3.0
     spectral_bin_hz: float = 50.0
     min_frequency_hz: float = 200.0
     max_frequency_hz: float = 8000.0
     max_spectral_peaks: int = 8
     profile_frames: int = 4096
-    max_events_per_detector: int = 1000
+    max_events_per_detector: int = 10000
     min_rms_dbfs: float = -85.0
     min_tonal_fraction: float = 0.08
-    minimum_level_separation_db: float = 6.0
+    minimum_level_separation_db: float = 3.0
     channel: int = 0
     read_frames: int = 262144
 
@@ -75,6 +76,8 @@ class CalibrationConfig:
             raise CalibrationInputError('Invalid event timing settings')
         if self.session_gap_seconds < self.max_period_seconds or self.read_frames < 4096:
             raise CalibrationInputError('Invalid session gap or read buffer')
+        if self.analysis_window_seconds <= 2 * self.max_period_seconds:
+            raise CalibrationInputError('Analysis windows must be longer than two maximum cycles')
         if not 0 < self.spectral_bin_hz <= 100 or self.max_spectral_peaks < 1 or self.profile_frames < 32:
             raise CalibrationInputError('Invalid spectral search settings')
         if not 0 <= self.min_frequency_hz < self.max_frequency_hz or not 0 < self.min_tonal_fraction < 1:
@@ -143,6 +146,15 @@ def inspect_recordings(paths, *, recursive=False, config=None):
     for file in sorted(expanded):
         if not re.fullmatch(r'\d{13}', file.stem):
             raise CalibrationInputError(f'WAV filename must be its first-sample epoch milliseconds (13 digits): {file.name}')
+        sidecar = file.with_suffix('.json')
+        if sidecar.exists():
+            try:
+                metadata = json.loads(sidecar.read_text(encoding='utf-8'))
+            except (ValueError, OSError) as exc:
+                raise CalibrationInputError(f'Invalid recording metadata: {sidecar}') from exc
+            if isinstance(metadata, dict) and metadata.get('managedBy') == 'shabat-elevator-diagnostics-v1' and metadata.get('closed') is False:
+                duplicates.append({'path': str(file), 'reason': 'recording_not_closed'})
+                continue
         try:
             with wave.open(str(file), 'rb') as source:
                 rate, frames = source.getframerate(), source.getnframes()
@@ -177,14 +189,18 @@ def inspect_recordings(paths, *, recursive=False, config=None):
         by_hash[fingerprint] = by_name[name_key] = item
         recordings.append(item)
     recordings.sort(key=lambda item: item.start)
+    if not recordings:
+        raise CalibrationInputError('No closed WAV files were found')
     session = 0
+    session_start = recordings[0].start
     for previous, current in zip(recordings, recordings[1:]):
         gap = current.start - previous.end
         # Epoch-ms filenames round sub-millisecond sample boundaries.
         if gap < -0.002:
             raise CalibrationInputError(f'Overlapping recordings: {previous.path.name} and {current.path.name}')
-        if gap > config.session_gap_seconds:
+        if gap > config.session_gap_seconds or current.start - session_start >= config.analysis_window_seconds:
             session += 1
+            session_start = current.start
         current.session = session
     return recordings, duplicates
 
@@ -239,8 +255,10 @@ def _spectral_batches(recordings, config, edges, progress=None, stage='analysis'
                 for offset in range(0, len(frames), 128):
                     block = frames[offset:offset + 128]
                     spectrum = np.abs(rfft(block * window, axis=1)) ** 2 * (2 / norm)
-                    cumulative = np.pad(np.cumsum(spectrum, axis=1), ((0, 0), (1, 0)))
-                    power = cumulative[:, bins[1:]] - cumulative[:, bins[:-1]]
+                    # Float64 accumulation preserves quiet high-frequency bands
+                    # beside much stronger low-frequency microphone hum.
+                    cumulative = np.pad(np.cumsum(spectrum, axis=1, dtype=np.float64), ((0, 0), (1, 0)))
+                    power = (cumulative[:, bins[1:]] - cumulative[:, bins[:-1]]).astype(np.float32)
                     times = pending_start + (np.arange(offset, offset + len(block)) * hop / item.sample_rate)
                     rms = np.mean(block * block, axis=1)
                     clipped = np.mean(np.abs(block) >= 0.999, axis=1)
@@ -252,37 +270,61 @@ def _spectral_batches(recordings, config, edges, progress=None, stage='analysis'
 
 
 def _profile(recordings, config, edges, progress):
+    # Profile a bounded, evenly spread PCM sample. Full-window maxima over a
+    # day favor isolated bangs; those must not crowd a recurring chime out.
     total_seconds = sum(item.frames / item.sample_rate for item in recordings)
-    expected_frames = total_seconds / 0.04
-    stride = max(1, math.ceil(expected_frames / config.profile_frames))
     samples = []
-    maximum = np.zeros(len(edges) - 1, np.float32)
-    count = 0
     clipped_count = 0
-    for _, _, _, _, power, _, clipped in _spectral_batches(recordings, config, edges, progress, 'profile'):
-        clean = clipped < 0.02
-        if clean.any():
-            maximum = np.maximum(maximum, power[clean].max(axis=0))
-        indices = np.flatnonzero((np.arange(count, count + len(power)) % stride == 0) & clean)
-        if len(indices):
-            samples.append(power[indices])
-        count += len(power)
-        clipped_count += int((~clean).sum())
+    count = 0
+    elapsed = 0.0
+    for index, item in enumerate(recordings):
+        if progress:
+            progress('profile', index + 1, len(recordings), item.path)
+        duration = item.frames / item.sample_rate
+        quota = round((elapsed + duration) / total_seconds * config.profile_frames) - round(elapsed / total_seconds * config.profile_frames)
+        elapsed += duration
+        nfft = 2 ** math.ceil(math.log2(item.sample_rate * .064))
+        if not quota or item.frames < nfft:
+            continue
+        window = np.hanning(nfft).astype(np.float32)
+        normalization = nfft * float(np.sum(window.astype(np.float64) ** 2))
+        bins = np.searchsorted(rfftfreq(nfft, 1 / item.sample_rate), edges)
+        with wave.open(str(item.path), 'rb') as source:
+            for at in np.linspace(0, item.frames - nfft, quota).astype(int):
+                source.setpos(int(at))
+                frame = decode_pcm(source.readframes(nfft), item.sample_width, item.channels, config.channel)
+                count += 1
+                if float(np.mean(np.abs(frame) >= .999)) >= .02:
+                    clipped_count += 1
+                    continue
+                spectrum = np.abs(rfft(frame * window)) ** 2 * (2 / normalization)
+                cumulative = np.pad(np.cumsum(spectrum, dtype=np.float64), (1, 0))
+                samples.append((cumulative[bins[1:]] - cumulative[bins[:-1]]).astype(np.float32))
     if not samples:
         return None
-    reservoir = np.concatenate(samples)
+    reservoir = np.array(samples)
     # The floor prevents floating-point residuals beside a static tone becoming infinite SNR.
     baseline = np.maximum(np.median(reservoir, axis=0), 1e-13)
-    ranking = 10 * np.log10(np.maximum(maximum, 1e-20) / baseline)
+    maximum = reservoir.max(axis=0)
+    recurrent = np.quantile(reservoir, .995, axis=0)
+    rankings = [10 * np.log10(np.maximum(level, 1e-20) / baseline) for level in (recurrent, maximum)]
+    # A broad mechanical spectrum can raise many adjacent bands together.
+    # Favor peaks that also stand out from their immediate spectral neighbors.
+    peak_scores = [np.array([ranking[index] + max(0, ranking[index] - float(np.median(
+        np.concatenate((ranking[max(0, index - 4):index], ranking[index + 1:index + 5])))))
+        for index in range(len(ranking))]) for ranking in rankings]
     valid = (edges[:-1] >= config.min_frequency_hz) & (maximum > 10 ** (config.min_rms_dbfs / 10))
     peaks = []
-    for index in np.argsort(ranking)[::-1]:
+    # Keep both recurrent tones and short chirped motifs. Alternating rankings
+    # gives each evidence type room in the bounded frequency search.
+    ranked = np.array([np.argsort(score)[::-1] for score in peak_scores]).T.ravel()
+    for index in ranked:
         center = (edges[index] + edges[index + 1]) / 2
-        if valid[index] and ranking[index] >= 8 and all(abs(center - old) >= 150 for old in peaks):
+        if valid[index] and max(ranking[index] for ranking in rankings) >= 8 and all(abs(center - old) >= 150 for old in peaks):
             peaks.append(float(center))
             if len(peaks) >= config.max_spectral_peaks:
                 break
-    return {'baseline': baseline, 'peaks': peaks, 'frames': count,
+    return {'baseline': baseline, 'peaks': peaks, 'frames': count, 'powerSamples': reservoir,
             'clippedFraction': clipped_count / max(count, 1)}
 
 
@@ -306,12 +348,13 @@ class _EventBuilder:
         item['fingerprint'] = vector / length
         item['duration'] = item['end'] - item['time']
         item['eventBandDbfs'] = 10 * math.log10(max(float(np.quantile(item.pop('bandPowers'), 0.9)), 1e-20))
+        item['eventTonalFraction'] = float(np.quantile(item.pop('tonalFractions'), .9))
         self.events.append(item)
         if len(self.events) > self.config.max_events_per_detector:
             self.excessive = True
             self.events.clear()
 
-    def add(self, segment, session, time, window_seconds, excess, snr, band_power):
+    def add(self, segment, session, time, window_seconds, excess, snr, band_power, tonal_fraction=1.0):
         if self.excessive:
             return
         if segment != self.segment or (self.pending is not None and time - self.pending['end'] > self.config.merge_gap_seconds):
@@ -320,52 +363,81 @@ class _EventBuilder:
         if self.pending is None:
             self.pending = {'time': float(time), 'end': float(time + window_seconds), 'session': session,
                             'spectrum': np.zeros_like(excess), 'peakSnrDb': float(snr), 'tooLong': False,
-                            'bandPowers': []}
+                            'bandPowers': [], 'tonalFractions': []}
         item = self.pending
         item['end'] = float(time + window_seconds)
         item['tooLong'] = item['end'] - item['time'] > self.config.max_event_seconds
         if not item['tooLong']:
             item['spectrum'] += excess
             item['bandPowers'].append(float(band_power))
+            item['tonalFractions'].append(float(tonal_fraction))
         item['peakSnrDb'] = max(item['peakSnrDb'], float(snr))
 
 
 def _detect(recordings, config, edges, profile, progress):
     builders = []
     centers = (edges[:-1] + edges[1:]) / 2
+    profile_power = profile['powerSamples']
+    profile_total = np.maximum(profile_power[:, edges[:-1] >= config.min_frequency_hz].sum(axis=1), 1e-20)
     for center in profile['peaks']:
         for width in (150.0, 300.0):
             selected = (centers >= center - width / 2) & (centers <= center + width / 2)
             low, high = float(edges[np.flatnonzero(selected)[0]]), float(edges[np.flatnonzero(selected)[-1] + 1])
             tonal_fraction = max(config.min_tonal_fraction, 2.5 * (high - low) / max(edges[-1] - config.min_frequency_hz, high - low))
+            sample_band = profile_power[:, selected].sum(axis=1)
+            tonal_samples = sample_band[sample_band / profile_total >= tonal_fraction]
+            frame_floors = [None]
+            if len(tonal_samples) and float(tonal_samples.max()) > 10 ** (config.min_rms_dbfs / 10):
+                # Search a second hypothesis that removes faint bridging sound
+                # before pulses merge. Its level comes from the sampled tones.
+                frame_floors.append(10 * math.log10(float(tonal_samples.max())) - 12)
             for snr in (8.0, 14.0):
-                builders.append(_EventBuilder(config, {'frequencyLowHz': low, 'frequencyHighHz': high,
-                    'snrThresholdDb': snr, 'minimumTonalFraction': tonal_fraction,
-                    'noiseBandPower': float(profile['baseline'][selected].sum()), 'mask': selected}))
+                for frame_floor in frame_floors:
+                    builders.append(_EventBuilder(config, {'frequencyLowHz': low, 'frequencyHighHz': high,
+                        'snrThresholdDb': snr, 'minimumTonalFraction': tonal_fraction,
+                        'minimumFrameBandDbfs': frame_floor,
+                        'noiseBandPower': float(profile['baseline'][selected].sum()), 'mask': selected}))
     minimum_power = 10 ** (config.min_rms_dbfs / 10)
     audible = edges[:-1] >= config.min_frequency_hz
     for segment, session, times, window_seconds, power, rms, clipped in _spectral_batches(recordings, config, edges, progress, 'detect'):
         excess = np.maximum(power - profile['baseline'] * 1.5, 0)
         total_excess = np.maximum(excess[:, audible].sum(axis=1), 1e-20)
+        total_audible = np.maximum(power[:, audible].sum(axis=1), 1e-20)
         good = (rms >= minimum_power) & (clipped < 0.02)
+        bands = {}
         for builder in builders:
             if builder.excessive:
                 continue
             settings = builder.settings
-            band = power[:, settings['mask']].sum(axis=1)
-            snr = 10 * np.log10(np.maximum(band, 1e-20) / settings['noiseBandPower'])
-            concentration = excess[:, settings['mask']].sum(axis=1) / total_excess
-            active = good & (snr >= settings['snrThresholdDb']) & (concentration >= settings['minimumTonalFraction']) & (band >= minimum_power)
+            key = settings['frequencyLowHz'], settings['frequencyHighHz']
+            if key not in bands:
+                band = power[:, settings['mask']].sum(axis=1)
+                snr = 10 * np.log10(np.maximum(band, 1e-20) / settings['noiseBandPower'])
+                concentration = excess[:, settings['mask']].sum(axis=1) / total_excess
+                bands[key] = band, snr, concentration
+            band, snr, concentration = bands[key]
+            frame_floor = settings['minimumFrameBandDbfs']
+            frame_power = 10 ** (frame_floor / 10) if frame_floor is not None else minimum_power
+            active = (good & (snr >= settings['snrThresholdDb']) & (concentration >= settings['minimumTonalFraction'])
+                      & (band >= max(minimum_power, frame_power)) & (band / total_audible >= config.min_tonal_fraction))
             for index in np.flatnonzero(active):
-                builder.add(segment, session, times[index], window_seconds, excess[index], snr[index], band[index])
+                builder.add(segment, session, times[index], window_seconds, excess[index], snr[index], band[index], band[index] / total_audible[index])
     for builder in builders:
         builder.finish()
     return builders
 
 
-def _acoustic_groups(events):
+def _acoustic_groups(events, *, audible_mask=None):
     groups = []
     for item in events:
+        if audible_mask is not None:
+            # Microphone hum below the searched range must not determine
+            # whether two chimes have the same acoustic fingerprint.
+            fingerprint = np.where(audible_mask, item['fingerprint'], 0)
+            length = float(np.linalg.norm(fingerprint))
+            if length <= 0:
+                continue
+            item = {**item, 'fingerprint': fingerprint / length}
         choices = []
         for index, group in enumerate(groups):
             ratio = item['duration'] / group['duration']
@@ -588,8 +660,10 @@ def _same_pattern(left, right, tolerance):
 
 def _is_demonstrably_weaker(candidate, strong, tolerance):
     """Compare the same observed events in the winner's band, not different bands' dB."""
-    if candidate['intensitySeparation']['clear']:
-        return False  # Conflicting strong-tier evidence must remain available for review.
+    same_band = (candidate.get('settings') is not None and strong.get('settings') is not None and
+        all(candidate['settings'].get(key) == strong['settings'].get(key) for key in ('frequencyLowHz', 'frequencyHighHz')))
+    if candidate['intensitySeparation']['clear'] and not same_band:
+        return False  # Different-band level orderings can contradict each other.
     if not strong['intensitySeparation']['clear'] or candidate['sessionId'] != strong['sessionId']:
         return False
     if candidate['prototype'].shape != strong['prototype'].shape or float(candidate['prototype'] @ strong['prototype']) < 0.82:
@@ -617,9 +691,12 @@ def _summary(candidate):
             'frequencyHighHz': candidate['settings']['frequencyHighHz']}
 
 
-def calibrate(paths, *, config=None, recursive=False, progress: Callable | None = None):
+def calibrate(paths, *, config=None, recursive=False, progress: Callable | None = None,
+              cycle_tolerance_percent=2.0):
     """Return a JSON-safe ready/review/insufficient_evidence report; never send arrivals."""
     config = config or CalibrationConfig()
+    if not math.isfinite(cycle_tolerance_percent) or not 0 <= cycle_tolerance_percent < 100:
+        raise CalibrationInputError('cycle_tolerance_percent must be in [0, 100)')
     recordings, duplicates = inspect_recordings(paths, recursive=recursive, config=config)
     max_frequency = min(config.max_frequency_hz, min(item.sample_rate / 2 for item in recordings))
     edges = np.arange(0, max_frequency + 0.001, config.spectral_bin_hz)
@@ -629,6 +706,7 @@ def calibrate(paths, *, config=None, recursive=False, progress: Callable | None 
               'createdAt': datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
               'status': 'insufficient_evidence', 'reason': 'no_repeated_sound_supported',
               'periodSeconds': None, 'parameters': None, 'matchingEvents': [], 'alternatives': [],
+              'cycleTolerancePercent': cycle_tolerance_percent,
               'source': {'files': [item.metadata() for item in recordings], 'duplicatesExcluded': duplicates,
                          'recordedSeconds': sum(item.frames / item.sample_rate for item in recordings),
                          'sessions': len({item.session for item in recordings}),
@@ -651,12 +729,13 @@ def calibrate(paths, *, config=None, recursive=False, progress: Callable | None 
         report['reason'] = 'no_transient_tonal_signal_above_noise'
         return report
     report['audioQuality'] = {'spectralFrames': profile['frames'], 'clippedFrameFraction': profile['clippedFraction'],
+                              'sampling': 'bounded_evenly_spaced_profile_frames',
                               'spectralPeakFrequenciesHz': profile['peaks']}
     builders = _detect(recordings, config, edges, profile, progress)
     candidates = []
     for builder in builders:
         if not builder.excessive:
-            for group in _acoustic_groups(builder.events):
+            for group in _acoustic_groups(builder.events, audible_mask=edges[:-1] >= config.min_frequency_hz):
                 for variant in _level_variants(group, config):
                     candidates.extend(_evaluate_group(variant, builder, recordings, config))
     report['searchDiagnostics'] = {'detectorsTested': len(builders),
@@ -678,7 +757,9 @@ def calibrate(paths, *, config=None, recursive=False, progress: Callable | None 
         # Different frequency bands can give contradictory level orderings. Keep
         # all evidence and require review rather than selecting through a cycle.
         weak_candidates = []
-    candidates.sort(key=lambda item: (item['score'], item['support']['matchingEvents']), reverse=True)
+    # A very regular short burst must not outrank a train that actually explains
+    # the covered audio. Keep incomplete candidates as review evidence below.
+    candidates.sort(key=lambda item: (item['ready'], item['score'], item['support']['matchingEvents']), reverse=True)
     distinct = []
     for candidate in candidates:
         equivalent = next((index for index, previous in enumerate(distinct)
@@ -687,7 +768,7 @@ def calibrate(paths, *, config=None, recursive=False, progress: Callable | None 
             distinct.append(candidate)
         elif candidate['intensitySeparation']['clear'] and not distinct[equivalent]['intensitySeparation']['clear']:
             distinct[equivalent] = candidate
-    distinct.sort(key=lambda item: (item['score'], item['support']['matchingEvents']), reverse=True)
+    distinct.sort(key=lambda item: (item['ready'], item['score'], item['support']['matchingEvents']), reverse=True)
     winner = distinct[0]
     report['periodSeconds'] = winner['periodSeconds']
     report['support'] = winner['support']
@@ -717,11 +798,16 @@ def calibrate(paths, *, config=None, recursive=False, progress: Callable | None 
         report['intensitySeparation'].update(clear=False, reason='conflicting_sound_level_gates')
     durations = np.array([item['duration'] for item in winner['matchingEvents']])
     settings = {key: value for key, value in winner['settings'].items() if key != 'mask'}
-    settings.update({'algorithm': 'hann_spectral_band_snr_level_v2', 'channel': config.channel,
+    threshold = winner['intensitySeparation']['thresholdDbfs'] if report['intensitySeparation']['clear'] else None
+    tonal = [item.get('eventTonalFraction', config.min_tonal_fraction) for item in winner['matchingEvents']]
+    frame_thresholds = [value for value in (settings.get('minimumFrameBandDbfs'), threshold - 6 if threshold is not None else None) if value is not None]
+    settings.update({'algorithm': 'hann_spectral_band_snr_level_v3', 'channel': config.channel,
                      'amplitudeUnits': 'normalized_pcm_full_scale_squared',
                      'powerNormalization': 'nfft * sum(hann_window**2)',
                      'eventBandLevelMetric': EVENT_BAND_LEVEL_METRIC,
-                     'minimumEventBandDbfs': winner['intensitySeparation']['thresholdDbfs'] if report['intensitySeparation']['clear'] else None,
+                     'minimumEventBandDbfs': threshold,
+                     'minimumFrameBandDbfs': max(frame_thresholds) if frame_thresholds else None,
+                     'minimumTonalFraction': min(.2, max(.05, float(np.quantile(tonal, .1)) * .5)),
                      'minimumLevelSeparationDb': config.minimum_level_separation_db,
                      'spectralBinHz': config.spectral_bin_hz, 'window': 'hann',
                      'fftSizeRule': 'next_power_of_two(sample_rate * 0.064)', 'hopFraction': 0.5,
@@ -769,7 +855,11 @@ def main(argv=None):
     parser.add_argument('--channel', type=int, default=0, help='Zero-based audio channel to analyze (default: 0)')
     parser.add_argument('--min-events', type=int, default=3, help='Minimum matching departures, at least 3 (default: 3)')
     parser.add_argument('--timing-tolerance', type=float, default=3.0, metavar='SECONDS', help='Allowed timing residual around a constant cycle')
-    parser.add_argument('--merge-gap', type=float, default=1.5, metavar='SECONDS', help='Merge nearby tone pulses into one departure motif')
+    parser.add_argument('--merge-gap', type=float, default=3.0, metavar='SECONDS', help='Merge nearby tone pulses into one departure motif')
+    parser.add_argument('--minimum-level-separation', type=float, default=3.0, metavar='DB',
+                        help='Required recorded strong/weak level gap, at least 3 dB (default: 3)')
+    parser.add_argument('--cycle-tolerance-percent', type=float, default=2.0,
+                        help='Runtime cycle tolerance percentage exported with the report (default: 2)')
     parser.add_argument('--quiet', action='store_true', help='Hide per-file progress')
     args = parser.parse_args(argv)
     if args.output.suffix.lower() != '.json':
@@ -782,10 +872,12 @@ def main(argv=None):
     if _audio_import_error is not None:
         parser.exit(2, f'Audio dependencies are missing: {_audio_import_error}. Run: uv sync --group audio\n')
     config = CalibrationConfig(channel=args.channel, min_events=args.min_events,
-                               timing_tolerance_seconds=args.timing_tolerance, merge_gap_seconds=args.merge_gap)
+                               timing_tolerance_seconds=args.timing_tolerance, merge_gap_seconds=args.merge_gap,
+                               minimum_level_separation_db=args.minimum_level_separation)
     progress = None if args.quiet else lambda stage, index, count, path: print(f'{stage} [{index}/{count}] {Path(path).name}', file=sys.stderr, flush=True)
     try:
-        report = calibrate(args.paths, config=config, recursive=args.recursive, progress=progress)
+        report = calibrate(args.paths, config=config, recursive=args.recursive, progress=progress,
+            cycle_tolerance_percent=args.cycle_tolerance_percent)
     except (CalibrationInputError, OSError) as exc:
         print(f'Calibration input error: {exc}', file=sys.stderr)
         print(f'Runtime configuration not updated: {runtime_output.resolve()}', file=sys.stderr)

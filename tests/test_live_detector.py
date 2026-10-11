@@ -140,6 +140,26 @@ class StreamingTests(unittest.TestCase):
         self.assertEqual(len(found), 1)
         self.assertAlmostEqual(found[0] / RATE, 1, delta=.064)
 
+    def test_frame_floor_stops_weak_noise_from_merging_a_valid_chime_into_long_noise(self):
+        samples = self.audio(9, [(1, 7, .001, 1000), (3, 3.8, .1, 1000)])
+        self.assertEqual(self.detect(samples)[0], [])
+        document = config()
+        document['detector']['minimumFrameBandDbfs'] = -50
+        found, _ = self.detect(samples, document)
+        self.assertEqual(len(found), 1)
+        self.assertAlmostEqual(found[0] / RATE, 3, delta=.064)
+
+    def test_tonal_filter_rejects_broadband_but_ignores_low_frequency_hum(self):
+        document = config()
+        document['detector']['minimumTonalFraction'] = .15
+        detector = StreamingDetector(document, RATE)
+        rng = self.np.random.default_rng(91)
+        noise = rng.normal(0, .1, detector.nfft).astype(self.np.float32)
+        self.assertFalse(detector._frame(noise)[0])
+        times = self.np.arange(detector.nfft) / RATE
+        tonal = (.1 * self.np.sin(2*self.np.pi*1000*times) + .3*self.np.sin(2*self.np.pi*80*times)).astype(self.np.float32)
+        self.assertTrue(detector._frame(tonal)[0])
+
     def test_gap_discards_candidate_and_requires_quiet_before_new_onset(self):
         detector = StreamingDetector(config(), RATE)
         before = self.audio(1.6, [(1, 1.6, .1, 1000)])

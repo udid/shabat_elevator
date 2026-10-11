@@ -9,15 +9,15 @@ const saturday = "2026-10-10T18:56:00+03:00";
 const reference = new Date("2026-10-08T10:00:00+03:00");
 const weekly = () => normalizeCalendar({ items: [event("candles", friday), event("havdalah", saturday)] }, config, reference);
 
-test("one hour of activity padding applies to both ends with correct ISO offsets", () => {
+test("ten minutes of activity padding applies to both ends with correct ISO offsets", () => {
   const calendar = weekly();
-  assert.equal(getActivityWindow(calendar, "2026-10-09T16:54:59+03:00").active, false);
-  const start = getActivityWindow(calendar, "2026-10-09T16:55:00+03:00");
+  assert.equal(getActivityWindow(calendar, "2026-10-09T17:44:59+03:00").active, false);
+  const start = getActivityWindow(calendar, "2026-10-09T17:45:00+03:00");
   assert.equal(start.active, true);
-  assert.equal(start.window.start, "2026-10-09T13:55:00.000Z");
-  assert.equal(start.window.end, "2026-10-10T16:56:00.000Z");
-  assert.equal(getActivityWindow(calendar, "2026-10-10T19:56:00+03:00").active, true);
-  assert.equal(getActivityWindow(calendar, "2026-10-10T19:56:01+03:00").active, false);
+  assert.equal(start.window.start, "2026-10-09T14:45:00.000Z");
+  assert.equal(start.window.end, "2026-10-10T16:06:00.000Z");
+  assert.equal(getActivityWindow(calendar, "2026-10-10T19:06:00+03:00").active, true);
+  assert.equal(getActivityWindow(calendar, "2026-10-10T19:06:01+03:00").active, false);
 });
 
 test("successive holiday candles preserve the first start until final havdalah", () => {

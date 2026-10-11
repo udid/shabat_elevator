@@ -1,6 +1,6 @@
 """Export scalar runtime settings from a successful offline calibration.
 
-``band_level_snr_v1`` is a small band/SNR/level/duration detector profile, not
+``band_level_snr_v2`` is a small band/SNR/level/duration detector profile, not
 the full offline spectral-fingerprint clustering model. Its level units follow
 calibration v2: normalized PCM, symmetric Hann windows, FFT size equal to the
 next power of two above sample_rate * .064, half-window hops, spectral power
@@ -9,7 +9,10 @@ normalized by nfft * sum(window**2), and p90 active-frame band power per event.
 defaultCycleSeconds is the fixed configured cycle for periodic confirmation and
 live forecasts, never an observation timestamp or a measured sample. A sound
 that passes the acoustic filters needs an earlier qualifying sound one or two
-configured cycles away, within cycleTolerancePercent of that interval. Older
+configured cycles away, within cycleTolerancePercent of that interval. Once
+the current capture has acquired a phase, only its confirmed anchor advances.
+Version 2 adds a frame-level floor and an audible-band tonal concentration gate;
+older version-1 profiles remain valid without those gates. Older
 schema-1 documents without the tolerance setting use 15 percent. Heartbeats
 and elapsed cycles do not synthesize departure events or renew a detection.
 """
@@ -46,18 +49,30 @@ def build_runtime_config(report):
             or not math.isfinite(tolerance)):
         raise ValueError("cycleTolerancePercent must be a finite number from 0 inclusive to 100 exclusive")
     parameters = report.get("parameters")
-    if not isinstance(parameters, dict) or parameters.get("algorithm") != "hann_spectral_band_snr_level_v2":
+    if not isinstance(parameters, dict) or parameters.get("algorithm") not in (
+        "hann_spectral_band_snr_level_v2", "hann_spectral_band_snr_level_v3",
+    ):
         raise ValueError("Unsupported calibration algorithm or missing parameters")
     channel = parameters.get("channel")
     if type(channel) is not int or channel < 0:
         raise ValueError("channel must be a nonnegative integer")
 
-    detector = {"profile": "band_level_snr_v1", "channel": channel}
+    profile = "band_level_snr_v2" if parameters['algorithm'] == 'hann_spectral_band_snr_level_v3' else "band_level_snr_v1"
+    detector = {"profile": profile, "channel": channel}
     for key in ("frequencyLowHz", "frequencyHighHz", "snrThresholdDb", "noiseBandPower",
                 "minimumRmsDbfs", "minimumEventSeconds", "maximumEventSeconds",
                 "mergeGapSeconds", "rearmSeconds"):
         detector[key] = _number(parameters, key)
     detector["minimumEventBandDbfs"] = _number(parameters, "minimumEventBandDbfs", nullable=True)
+    for key in ("minimumFrameBandDbfs", "minimumTonalFraction"):
+        if profile == 'band_level_snr_v2' and key not in parameters:
+            raise ValueError(f'Missing calibration parameter: {key}')
+        if key in parameters:
+            detector[key] = _number(parameters, key, nullable=key == "minimumFrameBandDbfs")
+    if detector.get("minimumFrameBandDbfs") is not None and detector["minimumFrameBandDbfs"] > 0:
+        raise ValueError("Frame level threshold must not exceed 0 dBFS")
+    if not 0 <= detector.get("minimumTonalFraction", 0) <= 1:
+        raise ValueError("minimumTonalFraction must be between 0 and 1")
     if not 0 < detector["frequencyLowHz"] < detector["frequencyHighHz"]:
         raise ValueError("Frequency bounds must satisfy 0 < low < high")
     if detector["noiseBandPower"] <= 0 or detector["snrThresholdDb"] < 0:
@@ -85,7 +100,7 @@ def validate_runtime_config(value):
     if not isinstance(value, dict) or type(value.get("schemaVersion")) is not int or value["schemaVersion"] != 1:
         raise ValueError("Runtime configuration requires schema version 1")
     detector = value.get("detector")
-    if not isinstance(detector, dict) or detector.get("profile") != "band_level_snr_v1":
+    if not isinstance(detector, dict) or detector.get("profile") not in ("band_level_snr_v1", "band_level_snr_v2"):
         raise ValueError("Unsupported runtime detector profile")
     return build_runtime_config({
         "schemaVersion": 2,
@@ -94,5 +109,5 @@ def validate_runtime_config(value):
         "floor": value.get("floor"),
         "periodSeconds": value.get("defaultCycleSeconds"),
         "cycleTolerancePercent": value.get("cycleTolerancePercent", 15),
-        "parameters": {**detector, "algorithm": "hann_spectral_band_snr_level_v2"},
+        "parameters": {**detector, "algorithm": "hann_spectral_band_snr_level_v3" if detector['profile'] == 'band_level_snr_v2' else "hann_spectral_band_snr_level_v2"},
     })

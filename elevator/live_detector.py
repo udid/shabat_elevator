@@ -71,7 +71,11 @@ class StreamingDetector:
         ]))
         if self.low == self.high:
             raise ValueError("Detector frequency band contains no FFT bins")
+        self.audible_low, self.audible_high = map(int, np.searchsorted(frequencies, [200, min(8000, sample_rate / 2)]))
         self.minimum_power = 10 ** (self.settings["minimumRmsDbfs"] / 10)
+        frame_dbfs = self.settings.get("minimumFrameBandDbfs")
+        self.minimum_frame_power = 10 ** (frame_dbfs / 10) if frame_dbfs is not None else 0
+        self.minimum_tonal_fraction = self.settings.get("minimumTonalFraction", 0)
         # Compare in dB to avoid overflowing on valid but extremely high SNR.
         self.merge_samples = self.settings["mergeGapSeconds"] * sample_rate
         self.rearm_samples = self.settings["rearmSeconds"] * sample_rate
@@ -124,8 +128,11 @@ class StreamingDetector:
         rms = float(np.mean(samples * samples))
         clipped = float(np.mean(np.abs(samples) >= .999))
         snr = 10 * math.log10(max(band, 1e-20) / self.settings["noiseBandPower"])
+        audible_power = float(np.sum(spectrum[self.audible_low:self.audible_high], dtype=np.float64))
+        fraction = band / max(audible_power, 1e-20)
         active = (clipped < .02 and rms >= self.minimum_power and
-                  band >= self.minimum_power and snr >= self.settings["snrThresholdDb"])
+                  band >= max(self.minimum_power, self.minimum_frame_power) and
+                  snr >= self.settings["snrThresholdDb"] and fraction >= self.minimum_tonal_fraction)
         return active, band
 
     def _finish(self):

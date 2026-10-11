@@ -127,15 +127,27 @@ class ObservationTests(unittest.TestCase):
                     self.assertEqual(result["reason"], "too_soon")
                     self.assertEqual(self.store.snapshot()["lastDetectionAt"], previous)
 
-    def test_too_close_matching_candidate_remains_eligible_for_future_pair(self):
+    def test_rejected_candidate_cannot_move_an_established_phase(self):
         self.tracking()  # candidates at 0 and 558; only 558 is approved
         previous = self.store.snapshot()["lastDetectionAt"]
         self.advance_connected(442)  # 1000 matches two cycles from 0, but is too close to 558
         self.assertEqual(self.store.observe(self.event("blocked"))["reason"], "too_soon")
         self.assertEqual(self.store.snapshot()["lastDetectionAt"], previous)
         self.advance_connected(475)  # 1475 can match only the unapproved candidate at 1000
-        self.assertTrue(self.store.observe(self.event("uses-blocked"))["accepted"])
+        self.assertEqual(self.store.observe(self.event("uses-blocked"))["reason"], "phase_mismatch")
+        self.assertEqual(self.store.snapshot()["lastDetectionAt"], previous)
+        self.advance_connected(199)  # 1674 matches two cycles from the confirmed 558.
+        self.assertTrue(self.store.observe(self.event("confirmed-phase"))["accepted"])
         self.assertEqual(self.store.snapshot()["cycleSeconds"], 558)
+
+    def test_competing_periodic_train_cannot_replace_confirmed_phase(self):
+        self.tracking()
+        self.advance_connected(300)
+        self.assertFalse(self.store.observe(self.event("other-phase-one"))["accepted"])
+        self.advance_connected(558)
+        self.assertEqual(self.store.observe(self.event("other-phase-two"))["reason"], "phase_mismatch")
+        self.advance_connected(258)
+        self.assertTrue(self.store.observe(self.event("real-two-laps"))["accepted"])
 
     def test_duplicate_pending_and_accepted_ids_cannot_supply_new_candidates(self):
         self.store.observe(self.event())
