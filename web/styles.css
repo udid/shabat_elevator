@@ -41,6 +41,12 @@ h1, h2, h3, p { margin: 0; }
 .site-header { display: flex; justify-content: space-between; align-items: center; gap: 20px; min-height: 52px; padding-block: 4px; flex-shrink: 0; }
 .brand { display: inline-flex; align-items: center; }
 .brand-block { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
+.brand-address { color: var(--muted); font-size: 11px; line-height: 1.4; }
+@media (min-width: 600px) {
+  .brand-block { display: grid; grid-template-columns: auto auto; align-items: center; column-gap: 16px; }
+  .brand-address { grid-column: 2; grid-row: 1; }
+  .detector-connection { grid-column: 1 / -1; grid-row: 2; }
+}
 .detector-connection { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; line-height: 1.4; }
 .connection-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
 .detector-connection[data-status="connected"] { color: var(--connected); }
