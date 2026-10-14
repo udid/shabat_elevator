@@ -559,6 +559,64 @@ sudo systemctl restart shabat-elevator.service
 
 לאחר המעבר בודקים שוב ש־`monitorOnly` הוא `false` ושהמיקרופון מדווח.
 
+### התאוששות מניתוק Wi-Fi
+
+מנגנון `shabat-wifi-recovery.timer` בודק את הרשת המקומית כל כ־30 שניות אחרי
+סיום הבדיקה הקודמת, החל מדקה לאחר האתחול. הוא מפעיל את
+`deploy/wifi_recovery.py`, שמותקן ברזברי ב־
+`/usr/local/lib/shabat-wifi-recovery/watchdog.py`.
+
+- אחרי שתי דקות ניתוק רצופות הוא מנסה במפורש להפעיל את פרופיל ה־Wi-Fi השמור,
+  עם timeout של 30 שניות ולכל היותר ניסיון אחד בכל שתי דקות.
+- אחרי עשר דקות רצופות, ורק אם ניסיון החיבור נכשל ובדיקה נוספת עדיין מאשרת
+  ניתוק, הוא מבקש אתחול מסודר של המערכת.
+- מותר אתחול אחד לכל אירוע ניתוק. הסימון נשמר באופן אטומי, עם `fsync`, ב־
+  `/var/lib/shabat-wifi-recovery/state.json` לפני בקשת האתחול. הוא נשמר גם
+  בהפעלה מחדש, ומתאפס רק אחרי עשר דקות רצופות של חיבור תקין.
+- בדיקת הבריאות מתייחסת לחיבור `wlan0`, לכתובת IPv4 ולנתיב ברירת המחדל
+  המקומי; אינה תלויה ב־DNS, באינטרנט או ב־Cloudflare.
+- זמן נמדד בשעון מונוטוני עם מזהה אתחול. נתון לא ידוע, הפסקה ממושכת בין
+  בדיקות או כיבוי מכוון של הממשק מאפסים את רצף המדידה ואינם מצדיקים אתחול.
+  מצב שמור פגום חוסם אתחול עד שייצברו עשר דקות של חיבור תקין.
+
+האתחול היומי הישן (`1 0 * * * /sbin/reboot` ב־crontab של root) הוסר בפריסה
+מ־14 באוקטובר 2026. שאר משימות cron נשמרו. לפני הפריסה נשמר גיבוי של
+ה־crontab ושל קבצים קודמים תחת `/var/backups/shabat-wifi-recovery/`.
+
+לאחר העתקת קובצי `deploy/` ואת `tests/test_wifi_recovery.py` לפרויקט ברזברי,
+אפשר להתקין או לעדכן באמצעות
+`sudo python3 deploy/install_wifi_recovery.py`. המתקין מריץ בדיקות מדומות,
+מאמת חיבור תקין גם מתוך שירות המערכת, מגבה את הקבצים ואת ה־crontab,
+ומחזיר את השינויים אם האימות נכשל. ההתקנה אינה מנתקת בכוונה Wi-Fi ואינה
+מאתחלת לצורך בדיקה. קובץ המצב הקיים נשמר, כדי לשמור על מגבלת האתחולים.
+
+בדיקות המנגנון נכללות ב־unittest הרגיל; אפשר להריץ אותן בנפרד:
+`python -m unittest discover -s tests -p test_wifi_recovery.py -v`.
+
+בדיקות מצב אינן מנתקות את הרשת או מאתחלות:
+
+```bash
+sudo python3 /usr/local/lib/shabat-wifi-recovery/watchdog.py --check-only
+systemctl is-enabled shabat-wifi-recovery.timer
+systemctl list-timers shabat-wifi-recovery.timer
+sudo journalctl -u shabat-wifi-recovery.service --no-pager -n 30
+sudo cat /var/lib/shabat-wifi-recovery/state.json
+```
+
+להשהיה מכוונת של מנגנון ההתאוששות:
+
+```bash
+sudo systemctl disable --now shabat-wifi-recovery.timer
+sudo systemctl stop shabat-wifi-recovery.service
+```
+
+להחזרה מפעילים `sudo systemctl enable --now shabat-wifi-recovery.timer`.
+אין למחוק את קובץ המצב במהלך ניתוק: מחיקתו מוחקת גם את מגבלת האתחול היחיד.
+פרטי SSH נשמרים מקומית מחוץ ל־Git ב־`secrets/pi-password.xml`, מוצפנים
+באמצעות Windows DPAPI עבור המשתמש הנוכחי. כלי התחזוקה הפרטי תומך גם
+ב־`PI_TEST_PASSWORD` לעקיפה זמנית; הסיסמה אינה בקוד או בתיעוד.
+
+
 ### יומנים והקלטות מתגלגלות ברזברי
 
 בהפעלה עם `--detector-config` השירות שומר אוטומטית גם יומנים וגם הקלטה רציפה

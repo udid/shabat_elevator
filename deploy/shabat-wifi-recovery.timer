@@ -1,0 +1,11 @@
+[Unit]
+Description=Check the elevator detector's local Wi-Fi connection
+
+[Timer]
+OnBootSec=60s
+OnUnitInactiveSec=30s
+AccuracySec=5s
+Unit=shabat-wifi-recovery.service
+
+[Install]
+WantedBy=timers.target

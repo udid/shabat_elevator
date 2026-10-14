@@ -1,0 +1,21 @@
+[Unit]
+Description=Recover prolonged local Wi-Fi outages for the elevator detector
+After=NetworkManager.service
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/bin/python3 /usr/local/lib/shabat-wifi-recovery/watchdog.py --interface wlan0 --connection-uuid 35fad423-f46a-49e3-8f9f-32f4a0edaac1 --state-dir /var/lib/shabat-wifi-recovery
+Environment=LC_ALL=C
+Environment=PYTHONDONTWRITEBYTECODE=1
+StateDirectory=shabat-wifi-recovery
+StateDirectoryMode=0700
+UMask=0077
+TimeoutStartSec=90
+Nice=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+
