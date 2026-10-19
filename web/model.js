@@ -19,12 +19,15 @@ function modulo(value, divisor) {
 
 /**
  * Repeated adjacent floors extend a dwell; distinct visits remain independent.
- * All durations are scaled to cycleSeconds. Default timings are demo assumptions.
+ * All durations are scaled to cycleSeconds. Default timings are demo assumptions;
+ * calibrated site settings may add a fixed acceleration/braking time per trip.
  */
 export function buildRoute(config = {}) {
   const route = config.route ?? DEFAULT_ROUTE;
   const cycleSeconds = positive(config.cycleSeconds ?? 570, 'cycleSeconds');
   const travelSecondsPerFloor = positive(config.travelSecondsPerFloor ?? 3, 'travelSecondsPerFloor');
+  const travelStartSeconds = finite(config.travelStartSeconds ?? 0, 'travelStartSeconds');
+  if (travelStartSeconds < 0) throw new RangeError('travelStartSeconds must not be negative');
   const dwellSeconds = positive(config.dwellSeconds ?? 12, 'dwellSeconds');
   const anchorFloor = config.anchorFloor ?? 7;
   const stopWeights = config.stopWeights ?? {};
@@ -45,9 +48,10 @@ export function buildRoute(config = {}) {
   const anchorIndex = visits.findIndex(stop => stop.floor === anchorFloor);
   if (anchorIndex < 0) throw new RangeError('anchorFloor must be a stop on the route');
   const ordered = [...visits.slice(anchorIndex), ...visits.slice(0, anchorIndex)];
+  const travelDuration = (from, to) => Math.abs(to - from) * travelSecondsPerFloor + travelStartSeconds;
   const rawDuration = ordered.reduce((total, stop, index) => {
     const next = ordered[(index + 1) % ordered.length];
-    return total + stop.weight * dwellSeconds + Math.abs(next.floor - stop.floor) * travelSecondsPerFloor;
+    return total + stop.weight * dwellSeconds + travelDuration(stop.floor, next.floor);
   }, 0);
   const scale = cycleSeconds / rawDuration;
   const stops = [];
@@ -63,7 +67,7 @@ export function buildRoute(config = {}) {
     cursor = departureSeconds;
     const endSeconds = visitIndex === ordered.length - 1
       ? cycleSeconds
-      : cursor + Math.abs(nextFloor - visit.floor) * travelSecondsPerFloor * scale;
+      : cursor + travelDuration(visit.floor, nextFloor) * scale;
     segments.push({ phase: 'moving', floor: null, fromFloor: visit.floor, nextFloor, direction: nextFloor > visit.floor ? 'up' : 'down', visitIndex, startSeconds: cursor, endSeconds });
     cursor = endSeconds;
   });

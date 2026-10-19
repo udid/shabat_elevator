@@ -1,11 +1,43 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { buildRoute, estimateState, nextArrival, liveTiming, DEFAULT_ROUTE } from '../web/model.js';
 
 const profile = buildRoute();
 const anchorMs = 1_800_000_000_000;
 const at = seconds => anchorMs + seconds * 1000;
 const approximately = (actual, expected, epsilon = 0.001) => assert.ok(Math.abs(actual - expected) < epsilon, `${actual} ≈ ${expected}`);
+
+test('fixed travel overhead applies once per trip, including the route boundary', () => {
+  const route = buildRoute({ route: [0, 1, 12], anchorFloor: 0, cycleSeconds: 87,
+    dwellSeconds: 10, travelSecondsPerFloor: 2, travelStartSeconds: 3 });
+  assert.deepEqual(route.segments.filter(s => s.phase === 'moving').map(s => s.endSeconds - s.startSeconds), [5, 25, 27]);
+  for (const value of [-1, Infinity, NaN, '3']) {
+    assert.throws(() => buildRoute({ travelStartSeconds: value }), RangeError);
+  }
+});
+
+test('site timing fits held-out weak chimes using only the preceding anchor and a fixed cycle', () => {
+  const config = JSON.parse(readFileSync(new URL('../web/config.json', import.meta.url)));
+  const evidence = JSON.parse(readFileSync(new URL('./fixtures/weak-floor-departures.json', import.meta.url)));
+  const route = buildRoute(config);
+  const ground = route.stops.filter(s => s.floor === 0);
+  approximately(ground[0].dwellSeconds, ground[1].dwellSeconds * 3);
+  assert.equal(route.stops.length, 16);
+  assert.ok(route.segments.every(s => s.endSeconds > s.startSeconds));
+  for (const floor of [8, 6]) {
+    const stop = route.stops.find(s => s.floor === floor);
+    const seconds = (stop.departureSeconds - route.stops[0].departureSeconds) * evidence.cycleSeconds / route.cycleSeconds;
+    const errors = evidence.events.filter(e => e.floor === floor).map(e => Math.abs(seconds - e.elapsedSeconds));
+    assert.equal(errors.length, 24);
+    assert.ok(errors.reduce((a, b) => a + b, 0) / errors.length < 1.2, `floor ${floor}: held-out mean error`);
+    assert.ok(Math.max(...errors) < 3.1, `floor ${floor}: held-out maximum error`);
+    const arrival = nextArrival(route, anchorMs, anchorMs, floor, evidence.cycleSeconds, 'departure');
+    assert.ok(arrival.seconds < seconds);
+    assert.equal(estimateState(route, anchorMs, at(arrival.seconds + 1), evidence.cycleSeconds, 'departure').floor, floor);
+    assert.equal(estimateState(route, anchorMs, at(seconds + 1), evidence.cycleSeconds, 'departure').phase, 'moving');
+  }
+});
 
 test('demo completes a 570-second cycle with the complete ordered route', () => {
   assert.equal(profile.cycleSeconds, 570);

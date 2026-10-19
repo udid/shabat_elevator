@@ -1,0 +1,294 @@
+{
+  "source": "Original WAV files from 9–10 October 2026; noon-and-later time holdout. Floors inferred from recurring chimes and route order, not independent floor labels.",
+  "cycleSeconds": 560,
+  "events": [
+    {
+      "floor": 8,
+      "elapsedSeconds": 301.1628119945526,
+      "sourceTime": "2026-10-10T12:11:14.668+03:00",
+      "sourceFile": "1791623471288.wav"
+    },
+    {
+      "floor": 6,
+      "elapsedSeconds": 330.8843538761139,
+      "sourceTime": "2026-10-10T12:11:44.390+03:00",
+      "sourceFile": "1791623471288.wav"
+    },
+    {
+      "floor": 8,
+      "elapsedSeconds": 302.3702495098114,
+      "sourceTime": "2026-10-10T12:39:21.877+03:00",
+      "sourceFile": "1791624971288.wav"
+    },
+    {
+      "floor": 6,
+      "elapsedSeconds": 332.1382312774658,
+      "sourceTime": "2026-10-10T12:39:51.645+03:00",
+      "sourceFile": "1791624971288.wav"
+    },
+    {
+      "floor": 8,
+      "elapsedSeconds": 302.7417688369751,
+      "sourceTime": "2026-10-10T12:57:59.453+03:00",
+      "sourceFile": "1791626171288.wav"
+    },
+    {
+      "floor": 6,
+      "elapsedSeconds": 332.4633107185364,
+      "sourceTime": "2026-10-10T12:58:29.175+03:00",
+      "sourceFile": "1791626171288.wav"
+    },
+    {
+      "floor": 6,
+      "elapsedSeconds": 331.67383217811584,
+      "sourceTime": "2026-10-10T13:07:48.126+03:00",
+      "sourceFile": "1791626771288.wav"
+    },
+    {
+      "floor": 8,
+      "elapsedSeconds": 301.0234920978546,
+      "sourceTime": "2026-10-10T13:35:14.560+03:00",
+      "sourceFile": "1791628271288.wav"
+    },
+    {
+      "floor": 6,
+      "elapsedSeconds": 330.79147386550903,
+      "sourceTime": "2026-10-10T13:35:44.328+03:00",
+      "sourceFile": "1791628271288.wav"
+    },
+    {
+      "floor": 8,
+      "elapsedSeconds": 300.7912926673889,
+      "sourceTime": "2026-10-10T13:44:33.882+03:00",
+      "sourceFile": "1791628871288.wav"
+    },
+    {
+      "floor": 6,
+      "elapsedSeconds": 330.55927443504333,
+      "sourceTime": "2026-10-10T13:45:03.650+03:00",
+      "sourceFile": "1791628871288.wav"
+    },
+    {
+      "floor": 8,
+      "elapsedSeconds": 301.8594102859497,
+      "sourceTime": "2026-10-10T13:53:52.693+03:00",
+      "sourceFile": "1791629471288.wav"
+    },
+    {
+      "floor": 6,
+      "elapsedSeconds": 331.580952167511,
+      "sourceTime": "2026-10-10T13:54:22.415+03:00",
+      "sourceFile": "1791629471288.wav"
+    },
+    {
+      "floor": 8,
+      "elapsedSeconds": 300.2804536819458,
+      "sourceTime": "2026-10-10T14:03:12.619+03:00",
+      "sourceFile": "1791630071288.wav"
+    },
+    {
+      "floor": 6,
+      "elapsedSeconds": 331.0236735343933,
+      "sourceTime": "2026-10-10T14:03:43.363+03:00",
+      "sourceFile": "1791630071288.wav"
+    },
+    {
+      "floor": 8,
+      "elapsedSeconds": 303.06684827804565,
+      "sourceTime": "2026-10-10T14:12:33.242+03:00",
+      "sourceFile": "1791630671288.wav"
+    },
+    {
+      "floor": 6,
+      "elapsedSeconds": 332.7419502735138,
+      "sourceTime": "2026-10-10T14:13:02.917+03:00",
+      "sourceFile": "1791630671288.wav"
+    },
+    {
+      "floor": 8,
+      "elapsedSeconds": 302.4631292819977,
+      "sourceTime": "2026-10-10T14:21:51.217+03:00",
+      "sourceFile": "1791631271288.wav"
+    },
+    {
+      "floor": 6,
+      "elapsedSeconds": 331.7667119503021,
+      "sourceTime": "2026-10-10T14:22:20.521+03:00",
+      "sourceFile": "1791631271288.wav"
+    },
+    {
+      "floor": 8,
+      "elapsedSeconds": 302.0451703071594,
+      "sourceTime": "2026-10-10T14:31:09.889+03:00",
+      "sourceFile": "1791631571288.wav"
+    },
+    {
+      "floor": 6,
+      "elapsedSeconds": 331.7667121887207,
+      "sourceTime": "2026-10-10T14:31:39.611+03:00",
+      "sourceFile": "1791631871288.wav"
+    },
+    {
+      "floor": 8,
+      "elapsedSeconds": 302.0451703071594,
+      "sourceTime": "2026-10-10T14:59:17.131+03:00",
+      "sourceFile": "1791633275980.wav"
+    },
+    {
+      "floor": 6,
+      "elapsedSeconds": 331.7667121887207,
+      "sourceTime": "2026-10-10T14:59:46.853+03:00",
+      "sourceFile": "1791633575980.wav"
+    },
+    {
+      "floor": 6,
+      "elapsedSeconds": 331.3023130893707,
+      "sourceTime": "2026-10-10T15:09:05.618+03:00",
+      "sourceFile": "1791633875980.wav"
+    },
+    {
+      "floor": 8,
+      "elapsedSeconds": 303.1132881641388,
+      "sourceTime": "2026-10-10T15:17:55.636+03:00",
+      "sourceFile": "1791634475980.wav"
+    },
+    {
+      "floor": 6,
+      "elapsedSeconds": 332.78839015960693,
+      "sourceTime": "2026-10-10T15:18:25.312+03:00",
+      "sourceFile": "1791634475980.wav"
+    },
+    {
+      "floor": 8,
+      "elapsedSeconds": 301.952290058136,
+      "sourceTime": "2026-10-10T15:45:53.232+03:00",
+      "sourceFile": "1791636275980.wav"
+    },
+    {
+      "floor": 6,
+      "elapsedSeconds": 332.7419500350952,
+      "sourceTime": "2026-10-10T15:46:24.021+03:00",
+      "sourceFile": "1791636275980.wav"
+    },
+    {
+      "floor": 8,
+      "elapsedSeconds": 301.44145131111145,
+      "sourceTime": "2026-10-10T15:55:12.693+03:00",
+      "sourceFile": "1791636875980.wav"
+    },
+    {
+      "floor": 6,
+      "elapsedSeconds": 332.2775511741638,
+      "sourceTime": "2026-10-10T15:55:43.529+03:00",
+      "sourceFile": "1791636875980.wav"
+    },
+    {
+      "floor": 8,
+      "elapsedSeconds": 301.67365074157715,
+      "sourceTime": "2026-10-10T16:41:48.608+03:00",
+      "sourceFile": "1791639575980.wav"
+    },
+    {
+      "floor": 6,
+      "elapsedSeconds": 331.395192861557,
+      "sourceTime": "2026-10-10T16:42:18.330+03:00",
+      "sourceFile": "1791639575980.wav"
+    },
+    {
+      "floor": 8,
+      "elapsedSeconds": 300.5126533508301,
+      "sourceTime": "2026-10-10T16:51:07.605+03:00",
+      "sourceFile": "1791640175980.wav"
+    },
+    {
+      "floor": 6,
+      "elapsedSeconds": 331.3951930999756,
+      "sourceTime": "2026-10-10T16:51:38.488+03:00",
+      "sourceFile": "1791640175980.wav"
+    },
+    {
+      "floor": 8,
+      "elapsedSeconds": 299.6767346858978,
+      "sourceTime": "2026-10-10T17:28:27.765+03:00",
+      "sourceFile": "1791642269384.wav"
+    },
+    {
+      "floor": 6,
+      "elapsedSeconds": 329.44471645355225,
+      "sourceTime": "2026-10-10T17:28:57.533+03:00",
+      "sourceFile": "1791642269384.wav"
+    },
+    {
+      "floor": 8,
+      "elapsedSeconds": 302.0916097164154,
+      "sourceTime": "2026-10-10T17:37:46.391+03:00",
+      "sourceFile": "1791642869384.wav"
+    },
+    {
+      "floor": 6,
+      "elapsedSeconds": 331.7667119503021,
+      "sourceTime": "2026-10-10T17:38:16.066+03:00",
+      "sourceFile": "1791642869384.wav"
+    },
+    {
+      "floor": 8,
+      "elapsedSeconds": 300.4662129878998,
+      "sourceTime": "2026-10-10T17:47:04.413+03:00",
+      "sourceFile": "1791643469384.wav"
+    },
+    {
+      "floor": 8,
+      "elapsedSeconds": 303.3454873561859,
+      "sourceTime": "2026-10-10T17:56:25.825+03:00",
+      "sourceFile": "1791644069384.wav"
+    },
+    {
+      "floor": 6,
+      "elapsedSeconds": 333.02058959007263,
+      "sourceTime": "2026-10-10T17:56:55.500+03:00",
+      "sourceFile": "1791644069384.wav"
+    },
+    {
+      "floor": 8,
+      "elapsedSeconds": 300.6055326461792,
+      "sourceTime": "2026-10-10T18:05:44.033+03:00",
+      "sourceFile": "1791644669384.wav"
+    },
+    {
+      "floor": 6,
+      "elapsedSeconds": 331.25587272644043,
+      "sourceTime": "2026-10-10T18:06:14.683+03:00",
+      "sourceFile": "1791644669384.wav"
+    },
+    {
+      "floor": 8,
+      "elapsedSeconds": 302.6953287124634,
+      "sourceTime": "2026-10-10T18:15:04.144+03:00",
+      "sourceFile": "1791645269384.wav"
+    },
+    {
+      "floor": 6,
+      "elapsedSeconds": 331.3487527370453,
+      "sourceTime": "2026-10-10T18:15:32.798+03:00",
+      "sourceFile": "1791645269384.wav"
+    },
+    {
+      "floor": 8,
+      "elapsedSeconds": 301.9987299442291,
+      "sourceTime": "2026-10-10T18:24:22.538+03:00",
+      "sourceFile": "1791645569384.wav"
+    },
+    {
+      "floor": 8,
+      "elapsedSeconds": 301.02349185943604,
+      "sourceTime": "2026-10-10T18:33:41.024+03:00",
+      "sourceFile": "1791646169384.wav"
+    },
+    {
+      "floor": 6,
+      "elapsedSeconds": 330.79147362709045,
+      "sourceTime": "2026-10-10T18:34:10.792+03:00",
+      "sourceFile": "1791646169384.wav"
+    }
+  ]
+}

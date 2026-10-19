@@ -241,7 +241,7 @@ def main():
             assert page.locator("#odd-route .stop-node").evaluate_all("nodes => nodes.map(node => Number(node.dataset.floor))") == [0, 11, 9, 7, 5, 3, 1, -1]
             expect(page.locator('.route-panel .stop-node.selected')).to_have_count(2)
             expect(page.locator('#even-route .stop-node.double')).to_have_attribute('data-floor', '0')
-            expect(page.locator('#even-route .stop-node.double small')).to_have_text('×2')
+            expect(page.locator('#even-route .stop-node.double small')).to_have_text('×3')
             assert page.locator('#settings-panel').evaluate('e => e.scrollHeight <= e.clientHeight + 1 && e.scrollWidth <= e.clientWidth + 1'), f"Settings overflow on {name}"
             page.screenshot(path=str(ARTIFACTS / f"settings-route-{name}.png"), full_page=True)
             page.keyboard.press("Tab")

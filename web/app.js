@@ -91,7 +91,7 @@ function setupFloorPicker() {
 
 function setupRoute() {
   const route = state.config.route;
-  // The repeated zero is one stop with double dwell, not two arrivals.
+  // Consecutive repetitions extend one stop's dwell without extra arrivals.
   const groups = [];
   for (const floor of route) {
     const previous = groups.at(-1);
@@ -99,6 +99,7 @@ function setupRoute() {
     else groups.push({ floor, weight: 1 });
   }
   const secondZero = groups.findIndex((stop, index) => index > 0 && stop.floor === 0);
+  $('extended-stop-weight').textContent = `×${Math.max(...groups.map(stop => stop.weight))}`;
   const even = secondZero === -1 ? groups : groups.slice(0, secondZero);
   const odd = secondZero === -1 ? [] : groups.slice(secondZero);
   [['even-route', even], ['odd-route', odd]].forEach(([id, stops]) => {
@@ -107,7 +108,7 @@ function setupRoute() {
       node.className = `stop-node${weight > 1 ? ' double' : ''}`;
       node.dataset.floor = String(floor);
       node.textContent = String(floor);
-      node.setAttribute('aria-label', `קומה ${floor}${weight > 1 ? ', עצירה כפולה' : ''}`);
+      node.setAttribute('aria-label', `קומה ${floor}${weight > 1 ? ', עצירה ממושכת' : ''}`);
       if (weight > 1) node.append(Object.assign(document.createElement('small'), { textContent: `×${weight}` }));
       $(id).append(node);
     });
