@@ -233,7 +233,7 @@ test('observations older than two hours are ignored online and in cached offline
         }));
         const live = liveTiming(snapshot, at(elapsed), { ...connected, reachable });
         assert.equal(live.anchor, elapsed <= 7200 ? anchorMs : null);
-        assert.equal(live.usable, reachable && elapsed < 7200);
+        assert.equal(live.usable, elapsed < 7200);
         assert.equal(live.connected, reachable);
         assert.equal(live.cycle, 558);
         assert.equal(live.seen, at(elapsed));
@@ -253,10 +253,10 @@ test('observations older than two hours are ignored online and in cached offline
   assert.equal(recovered.anchor, at(7201));
 });
 
-test('unreachable, stale and uncertain snapshots cannot enable a forecast', () => {
+test('connection loss and resynchronization preserve forecasting from the confirmed anchor', () => {
   const snapshot = departureSnapshot();
   const unreachable = liveTiming(snapshot, at(2), { ...connected, reachable: false });
-  assert.equal(unreachable.usable, false);
+  assert.equal(unreachable.usable, true);
   assert.equal(unreachable.connected, false);
   assert.equal(unreachable.anchor, anchorMs);
   for (const options of [connected, { reachable: true }]) {
@@ -268,17 +268,59 @@ test('unreachable, stale and uncertain snapshots cannot enable a forecast', () =
     }
     const stale = liveTiming(snapshot, at(181.001), options);
     assert.equal(stale.connected, false);
-    assert.equal(stale.usable, false);
+    assert.equal(stale.usable, true);
   }
-  for (const measurementStatus of ['stale', 'uncertain', 'waiting']) {
-    const blocked = liveTiming(departureSnapshot({
+  for (const measurementStatus of ['stale', 'uncertain']) {
+    const recovering = liveTiming(departureSnapshot({
       measurementStatus, lastSeenAt: new Date(at(1140)).toISOString(),
     }), at(1140), connected);
-    assert.equal(blocked.connected, true);
-    assert.equal(blocked.usable, false);
-    assert.equal(blocked.anchor, anchorMs);
+    assert.equal(recovering.connected, true);
+    assert.equal(recovering.usable, true);
+    assert.equal(recovering.anchor, anchorMs);
   }
   assert.equal(snapshot.lastDepartureAt, new Date(anchorMs).toISOString());
+});
+
+test('microphone failure, reconnection and API outage never reset the anchor or its deadline', () => {
+  const samples = [
+    { elapsed: 200, reachable: true, sourceConnected: false, lastSeenAt: null, measurementStatus: 'stale' },
+    { elapsed: 500, reachable: true, sourceConnected: true, lastSeenAt: new Date(at(500)).toISOString(), measurementStatus: 'uncertain' },
+    { elapsed: 7199, reachable: false, sourceConnected: true, lastSeenAt: new Date(at(500)).toISOString(), measurementStatus: 'uncertain' },
+    { elapsed: 7200, reachable: false, sourceConnected: true, lastSeenAt: new Date(at(500)).toISOString(), measurementStatus: 'uncertain' },
+    { elapsed: 7201, reachable: true, sourceConnected: true, lastSeenAt: new Date(at(7201)).toISOString(), measurementStatus: 'uncertain' },
+  ];
+  for (const { elapsed, reachable, ...fields } of samples) {
+    const snapshot = Object.freeze(departureSnapshot(fields));
+    const live = liveTiming(snapshot, at(elapsed), { ...connected, reachable });
+    assert.equal(live.usable, elapsed < 7200);
+    assert.equal(live.anchor, elapsed <= 7200 ? anchorMs : null);
+    assert.equal(live.connected, elapsed === 500 || elapsed === 7201);
+    if (live.usable) {
+      for (const floor of [7, 6, 0, -1]) {
+        assert.deepEqual(nextArrival(profile, live.anchor, at(elapsed), floor, live.cycle, live.anchorKind),
+          nextArrival(profile, anchorMs, at(elapsed), floor, 558, 'departure'));
+      }
+      const first = nextArrival(profile, live.anchor, at(elapsed), 6, live.cycle, live.anchorKind);
+      const later = nextArrival(profile, live.anchor, at(elapsed + 1), 6, live.cycle, live.anchorKind);
+      assert.ok(first.seconds > 1);
+      approximately(later.seconds, first.seconds - 1);
+    }
+    assert.equal(snapshot.lastDepartureAt, new Date(anchorMs).toISOString());
+  }
+});
+
+test('capture health does not determine whether an unexpired confirmed departure is usable', () => {
+  for (const overrides of [
+    { lastSeenAt: null, sourceConnected: false, measurementStatus: 'stale' },
+    { lastSeenAt: null, sourceConnected: true, measurementStatus: 'uncertain' },
+    { lastSeenAt: 'invalid' }, { lastSeenAt: new Date(at(210)).toISOString() },
+    { lastSeenAt: new Date(at(-1)).toISOString() }, { sourceConnected: false },
+  ]) {
+    const live = liveTiming(departureSnapshot(overrides), at(200), connected);
+    assert.equal(live.connected, false);
+    assert.equal(live.usable, true);
+    assert.equal(live.anchor, anchorMs);
+  }
 });
 
 test('malformed live cycles and observations never produce a forecast', () => {
@@ -295,9 +337,8 @@ test('malformed live cycles and observations never produce a forecast', () => {
   for (const overrides of [
     { anchorKind: 'chime' }, { anchorKind: null, lastArrivalAt: new Date(anchorMs).toISOString() },
     { cycleSource: 'simulation' }, { cycleSource: null },
-    { lastSeenAt: null }, { lastSeenAt: new Date(at(10)).toISOString() },
-    { lastSeenAt: new Date(at(-1)).toISOString() }, { sourceConnected: false },
     { mode: 'simulation' }, { measurementStatus: 'waiting' },
+    { measurementStatus: null }, { measurementStatus: 'unknown' },
   ]) {
     assert.equal(liveTiming(departureSnapshot(overrides), at(2), connected).usable, false);
   }

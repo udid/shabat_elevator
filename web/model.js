@@ -156,6 +156,10 @@ export function liveTiming(live, nowMs, { reachable = false, staleAfterSeconds =
   // Stop at two hours even between API polls; heartbeats do not renew a detection.
   const timingValid = anchor !== null && cycle !== null && nowMs - anchor < MAX_DETECTION_AGE_MS;
   const monitorOnly = live?.monitorOnly === true;
-  const usable = !monitorOnly && connected && timingValid && seen >= anchor && live?.measurementStatus === 'tracking';
+  // Capture health and reacquiring a new pair do not revoke a confirmed
+  // departure. Keep forecasting from it, including cached API responses, until
+  // its own two-hour deadline; only an accepted detection can renew that time.
+  const hasConfirmedAnchor = ['tracking', 'stale', 'uncertain'].includes(live?.measurementStatus);
+  const usable = !monitorOnly && live?.mode === 'live' && timingValid && hasConfirmedAnchor;
   return { usable, anchor, anchorKind: kindValid ? anchorKind : null, cycle, cycleSource, connected, seen, monitorOnly, live };
 }

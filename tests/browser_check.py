@@ -488,8 +488,9 @@ def main():
         live["sourceConnected"] = False
         live["measurementStatus"] = "stale"
         page.clock.run_for(30_500)
-        expect(page.locator("#countdown")).not_to_be_visible()
-        expect(page.locator("#position-readout")).not_to_be_visible()
+        expect(page.locator("#countdown")).to_be_visible()
+        expect(page.locator("#position-readout")).to_be_visible()
+        expect(page.locator("#countdown-label")).to_have_text("זמן משוער להגעה")
         expect(page.locator("#mode-banner")).not_to_be_visible()
         expect(page.locator("#last-update")).to_have_text("17:59:58")
         expect_connection(page, "disconnected", "הגלאי אינו מדווח")
@@ -500,7 +501,7 @@ def main():
         expect_connection(page, "disconnected", "הגלאי אינו מדווח")
         toggle_demo(page)
         expect(page.locator("#mode-banner")).not_to_be_visible()
-        expect(page.locator("#countdown")).not_to_be_visible()
+        expect(page.locator("#countdown")).to_be_visible()
         live.update(sourceConnected=True, measurementStatus="tracking", lastSeenAt="2026-10-09T15:00:58Z",
                     lastArrivalAt="2026-10-09T14:40:00Z", cycleSource="measured")
         page.clock.run_for(30_500)
@@ -531,11 +532,13 @@ def main():
         page.screenshot(path=str(ARTIFACTS / "small-phone-live.png"), full_page=True)
         context.set_offline(True)
         expect_connection(page, "unavailable", "אין חיבור לגלאי")
+        expect(page.locator("#countdown")).to_be_visible()
+        expect(page.locator("#countdown-label")).to_have_text("זמן משוער להגעה")
         expect(page.locator("#last-update")).to_have_text("18:02:28")
         expect(page.locator("#mode-banner")).not_to_be_visible()
         page.screenshot(path=str(ARTIFACTS / "small-phone-live-offline.png"), full_page=True)
         context.close()
-        print("PASS: missed detections keep forecasting from the real timestamp; disconnection, uncertain state and waiting suppress forecasts")
+        print("PASS: missed detections and disconnection keep forecasting from the real timestamp; expired or missing anchors suppress forecasts")
 
         configured = {"mode": "live", "sourceConnected": True, "anchorKind": "departure",
                       "lastDepartureAt": None, "lastArrivalAt": None,
@@ -563,14 +566,59 @@ def main():
         expect(page.locator("#cycle-label")).to_have_text("מחזור לפי כיול")
         expect(page.locator("#cycle-duration")).to_have_text("09:18")
         page.screenshot(path=str(ARTIFACTS / "small-phone-configured-cycle.png"), full_page=True)
-        # After reconnect, even a saved anchor plus the configured cycle is insufficient.
-        configured.update(measurementStatus="waiting", lastSeenAt="2026-10-09T15:01:28Z")
+
+        # A real capture fault clears the heartbeat, but preserves the last accepted anchor.
+        configured.update(sourceConnected=False, lastSeenAt=None, measurementStatus="stale")
+        page.clock.run_for(30_500)
+        expect_connection(page, "disconnected", "הגלאי אינו מדווח")
+        expect(page.locator("#countdown")).to_be_visible()
+        expect(page.locator("#countdown-label")).to_have_text("זמן משוער להגעה")
+        expect(page.locator("#last-arrival")).to_have_text("18:00:40")
+
+        # Reconnection requires a new pair for a replacement anchor, not for this countdown.
+        configured.update(sourceConnected=True, measurementStatus="uncertain",
+                          lastSeenAt=page.evaluate("new Date().toISOString()"))
+        page.clock.run_for(30_500)
+        expect_connection(page, "connected", "מחובר לגלאי")
+        expect(page.locator("#countdown-label")).to_have_text("זמן משוער להגעה")
+        expect(page.locator("#countdown")).to_be_visible()
+        expect(page.locator("#position-readout")).to_be_visible()
+        expect(page.locator("#mode-banner")).not_to_be_visible()
+        expect(page.locator("#arrival-note")).not_to_be_visible()
+        expect(page.locator("#last-arrival")).to_have_text("18:00:40")
+        before = page.locator("#countdown").inner_text()
+        page.clock.run_for(2_000)
+        after = page.locator("#countdown").inner_text()
+        seconds = lambda value: sum(int(part) * factor for part, factor in zip(value.split(":"), (60, 1)))
+        assert seconds(before) - seconds(after) == 2, (before, after)
+        page.screenshot(path=str(ARTIFACTS / "small-phone-resynchronizing-countdown.png"), full_page=True)
+
+        # Failed API polls and browser offline events must not replace the running clock.
+        page.route("**/api/state", lambda route: route.fulfill(status=503, body="Unavailable"))
+        page.clock.run_for(30_500)
+        expect_connection(page, "unavailable", "אין חיבור לגלאי")
+        expect(page.locator("#countdown")).to_be_visible()
+        expect(page.locator("#countdown-label")).to_have_text("זמן משוער להגעה")
+        context.set_offline(True)
+        expect(page.locator("#countdown")).to_be_visible()
+        expect(page.locator("#last-arrival")).to_have_text("18:00:40")
+        page.unroute("**/api/state")
+        page.route("**/api/state", lambda route: route.fulfill(json=configured))
+        configured["lastSeenAt"] = page.evaluate("new Date().toISOString()")
+        context.set_offline(False)
+        expect_connection(page, "connected", "מחובר לגלאי")
+        expect(page.locator("#countdown")).to_be_visible()
+        expect(page.locator("#last-arrival")).to_have_text("18:00:40")
+
+        # A waiting snapshot has no confirmed anchor and cannot enable a forecast.
+        configured.update(lastDepartureAt=None, measurementStatus="waiting",
+                          lastSeenAt=page.evaluate("new Date().toISOString()"))
         page.clock.run_for(30_500)
         expect(page.locator("#countdown")).not_to_be_visible()
         expect(page.locator("#position-readout")).not_to_be_visible()
         expect(page.locator("#cycle-duration")).to_have_text("09:18")
         context.close()
-        print("PASS: configured cycle is displayed while waiting; only a confirmed departure enables forecasts")
+        print("PASS: microphone faults, reacquisition and API outages preserve the visible countdown and original anchor; no anchor means no forecast")
 
         expiring = {"mode": "live", "sourceConnected": True, "anchorKind": "departure",
                     "lastDepartureAt": "2026-10-09T13:00:20Z", "lastArrivalAt": None,
@@ -607,8 +655,10 @@ def main():
         page.locator("#floor-select").select_option("6")
         context.set_offline(True)
         expect_connection(page, "unavailable", "אין חיבור לגלאי")
+        expect(page.locator("#countdown")).to_be_visible()
         page.clock.pause_at(datetime(2026, 10, 9, 15, 0, 20, tzinfo=timezone.utc))
         page.locator("#floor-select").select_option("5")
+        expect(page.locator("#countdown")).not_to_be_visible()
         expect(page.locator("#last-arrival")).to_have_text("16:00:20")
         page.clock.run_for(1_000)
         expect(page.locator("#last-arrival")).to_have_text("—")
