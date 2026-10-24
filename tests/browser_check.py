@@ -89,7 +89,7 @@ def main():
             config["liveApiUrl"] = ""
             page.route("**/config.json", lambda route: route.fulfill(json=config))
             if live_state is not None:
-                page.route("**/api/state", lambda route: route.fulfill(json=live_state))
+                page.route("**/api/state*", lambda route: route.fulfill(json=live_state))
             page.goto(BASE_URL, wait_until="networkidle")
             expect(page.locator("#floor-select option")).to_have_count(15)
             return context, page
@@ -594,7 +594,7 @@ def main():
         page.screenshot(path=str(ARTIFACTS / "small-phone-resynchronizing-countdown.png"), full_page=True)
 
         # Failed API polls and browser offline events must not replace the running clock.
-        page.route("**/api/state", lambda route: route.fulfill(status=503, body="Unavailable"))
+        page.route("**/api/state*", lambda route: route.fulfill(status=503, body="Unavailable"))
         page.clock.run_for(30_500)
         expect_connection(page, "unavailable", "אין חיבור לגלאי")
         expect(page.locator("#countdown")).to_be_visible()
@@ -602,8 +602,8 @@ def main():
         context.set_offline(True)
         expect(page.locator("#countdown")).to_be_visible()
         expect(page.locator("#last-arrival")).to_have_text("18:00:40")
-        page.unroute("**/api/state")
-        page.route("**/api/state", lambda route: route.fulfill(json=configured))
+        page.unroute("**/api/state*")
+        page.route("**/api/state*", lambda route: route.fulfill(json=configured))
         configured["lastSeenAt"] = page.evaluate("new Date().toISOString()")
         context.set_offline(False)
         expect_connection(page, "connected", "מחובר לגלאי")
@@ -676,12 +676,12 @@ def main():
         expect_connection(page, "connected", "מחובר לגלאי")
         expect(page.locator("#detector-connection")).to_be_in_viewport(ratio=1)
         expect(page.locator("#last-update")).to_have_text("17:59:58")
-        page.route("**/api/state", lambda route: route.fulfill(status=503, body="Unavailable"))
+        page.route("**/api/state*", lambda route: route.fulfill(status=503, body="Unavailable"))
         page.clock.run_for(30_500)
         expect_connection(page, "unavailable", "אין חיבור לגלאי")
         expect(page.locator("#last-update")).to_have_text("17:59:58")
-        page.unroute("**/api/state")
-        page.route("**/api/state", lambda route: route.fulfill(json=monitor))
+        page.unroute("**/api/state*")
+        page.route("**/api/state*", lambda route: route.fulfill(json=monitor))
         monitor["lastSeenAt"] = "2026-10-09T14:58:00Z"
         page.clock.run_for(30_500)
         expect_connection(page, "disconnected", "הגלאי אינו מדווח")

@@ -1,14 +1,17 @@
 import json
 import os
 import socket
+import tempfile
 import threading
 import unittest
 from datetime import timedelta
 from http.client import HTTPResponse
+from pathlib import Path
 from unittest.mock import Mock, patch
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
+from elevator.analytics import VisitorAnalytics
 from elevator.server import create_server, main
 from elevator.state import iso, utc_now
 
@@ -165,7 +168,7 @@ class PublicServerTests(unittest.TestCase):
                  "observedAt": iso(utc_now()), "cycleSeconds": 570}
         headers = {"Authorization": "Bearer " + self.token, "Content-Type": "application/json"}
         for method in ("POST", "PUT", "PATCH", "DELETE", "CONNECT", "TRACE"):
-            for path in ("/api/observations", "/api/heartbeat", "/api/state"):
+            for path in ("/api/observations", "/api/heartbeat", "/api/state", "/api/analytics"):
                 with self.subTest(method=method, path=path):
                     status, response_headers, _ = self.request(self.public, path, method=method,
                                                                payload=event, headers=headers)
@@ -202,7 +205,7 @@ class PublicServerTests(unittest.TestCase):
                     self.assertIsNone(response_headers["Access-Control-Allow-Origin"])
 
     def test_public_preflight_advertises_only_reading_on_allowed_paths(self):
-        for path in ("/api/state", "/api/health"):
+        for path in ("/api/state", "/api/health", "/api/analytics"):
             with self.subTest(path=path):
                 status, headers, body = self.request(self.public, path, method="OPTIONS",
                                                      headers={"Origin": self.origin})
@@ -298,6 +301,7 @@ class ServerLifecycleTests(unittest.TestCase):
 
         def capture_server(*args, **kwargs):
             kwargs["state_path"] = None
+            kwargs["analytics_path"] = None
             server = create_server(*args, **kwargs)
             created.append(server)
             return server
@@ -347,6 +351,105 @@ class ServerLifecycleTests(unittest.TestCase):
         self.assertEqual(local.socket.fileno(), -1)
         self.assertEqual(public.socket.fileno(), -1)
 
+
+class AnalyticsServerTests(unittest.TestCase):
+    def setUp(self):
+        self.analytics = VisitorAnalytics()
+        self.server = create_server(port=0, analytics=self.analytics)
+        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+        self.thread.start()
+        self.base = f"http://127.0.0.1:{self.server.server_port}"
+
+    def tearDown(self):
+        self.server.shutdown()
+        self.thread.join()
+        self.server.server_close()
+        self.analytics.close()
+
+    def test_presence_is_optional_and_statistics_read_does_not_register_a_visit(self):
+        with urlopen(self.base + "/api/state") as response:
+            self.assertEqual(response.status, 200)
+        with urlopen(self.base + "/api/analytics") as response:
+            initial = json.load(response)
+            self.assertEqual(response.headers["Cache-Control"], "no-store")
+        self.assertEqual(initial["activeNow"], 0)
+        visitor = "a" * 32
+        for query in (f"visitor={visitor}", f"visitor={visitor}", "visitor=bad",
+                      f"visitor={'b' * 32}&visitor={'c' * 32}"):
+            with urlopen(self.base + "/api/state?" + query) as response:
+                self.assertEqual(response.status, 200)
+        with urlopen(self.base + "/api/analytics") as response:
+            result = json.load(response)
+        self.assertEqual(result["activeNow"], 1)
+        self.assertEqual(result["hours"][-1]["uniqueVisitors"], 1)
+
+    def test_invalid_statistics_queries_return_400(self):
+        for query in ("start=bad&end=bad", "start=2026-10-24", "unknown=1", "start=&end=",
+                      "start=2026-10-24&start=2026-10-24", "a=1&b=2&c=3"):
+            with self.subTest(query=query), self.assertRaises(HTTPError) as caught:
+                urlopen(self.base + "/api/analytics?" + query)
+            self.assertEqual(caught.exception.code, 400)
+
+    def test_analytics_failure_does_not_affect_elevator_state(self):
+        with patch.object(self.analytics, "record", side_effect=OSError("broken disk")), \
+                patch.object(self.analytics, "snapshot", side_effect=OSError("broken disk")):
+            with urlopen(self.base + "/api/state?visitor=" + "a" * 32) as response:
+                self.assertEqual(response.status, 200)
+                self.assertIn("mode", json.load(response))
+            with self.assertRaises(HTTPError) as caught:
+                urlopen(self.base + "/api/analytics")
+            self.assertEqual(caught.exception.code, 503)
+            self.assertFalse(json.load(caught.exception)["available"])
+
+    def test_backward_clock_suspension_returns_unavailable_and_state_still_works(self):
+        before = self.analytics.clock()
+        with patch.object(self.analytics, "clock", return_value=before - timedelta(minutes=1)):
+            with urlopen(self.base + "/api/state?visitor=" + "a" * 32) as response:
+                self.assertEqual(response.status, 200)
+                self.assertIn("mode", json.load(response))
+            with self.assertRaises(HTTPError) as caught:
+                urlopen(self.base + "/api/analytics")
+            self.assertEqual(caught.exception.code, 503)
+            self.assertFalse(json.load(caught.exception)["available"])
+        with urlopen(self.base + "/api/analytics") as response:
+            self.assertTrue(json.load(response)["available"])
+
+    def test_shared_public_stats_instance_and_local_read_only_preflight(self):
+        public = create_server(port=0, public=True, store=self.server.store, analytics=self.analytics)
+        thread = threading.Thread(target=public.serve_forever, daemon=True)
+        thread.start()
+        try:
+            with urlopen(f"http://127.0.0.1:{public.server_port}/api/state?visitor=" + "a" * 32):
+                pass
+            with urlopen(self.base + "/api/analytics") as response:
+                self.assertEqual(json.load(response)["activeNow"], 1)
+            with urlopen(Request(self.base + "/api/analytics", method="OPTIONS")) as response:
+                self.assertEqual(response.headers["Access-Control-Allow-Methods"], "GET, OPTIONS")
+                self.assertIsNone(response.headers.get("Access-Control-Allow-Headers"))
+        finally:
+            public.shutdown()
+            thread.join()
+            public.server_close()
+        self.assertTrue(self.analytics.snapshot()["available"])
+
+    def test_owned_analytics_worker_closes_with_server(self):
+        with tempfile.TemporaryDirectory() as directory:
+            server = create_server(port=0, analytics_path=Path(directory) / "analytics.sqlite3")
+            worker = server.analytics._thread
+            self.assertTrue(worker.is_alive())
+            server.server_close()
+            self.assertFalse(worker.is_alive())
+            server.server_close()
+
+    def test_storage_startup_failure_leaves_state_service_available(self):
+        with patch("elevator.server.VisitorAnalytics", side_effect=OSError("disk unavailable")), \
+                self.assertLogs("elevator.server", level="ERROR"):
+            server = create_server(port=0, analytics_path="unused.sqlite3")
+        try:
+            self.assertIsNone(server.analytics)
+            self.assertIn("mode", server.store.snapshot())
+        finally:
+            server.server_close()
 
 if __name__ == "__main__":
     unittest.main()

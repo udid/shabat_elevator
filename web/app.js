@@ -1,5 +1,6 @@
 import { buildRoute, estimateState, nextArrival, liveTiming } from './model.js';
 import { fetchCalendar, getActivityWindow, fetchWeather } from './services.js';
+import { createPresence } from './presence.js';
 
 const $ = (id) => document.getElementById(id);
 const WAKE_RETRY_MS = 30_000;
@@ -8,7 +9,7 @@ const state = {
   live: null, liveReachable: false, liveChecked: false, polling: false, manualDemo: false,
   demoAnchor: null, wakeLock: null, wakePending: false, wakeRetryTimer: null, wakeNoticeShown: false,
   toastTimer: null, lastCalendarFetch: 0, lastWeatherFetch: 0, calendarPending: false,
-  weatherPending: false,
+  weatherPending: false, presenceUrl: (url) => url,
 };
 
 function setText(id, value) {
@@ -322,7 +323,7 @@ async function pollLive() {
   const timeout = setTimeout(() => controller.abort(), 8000);
   try {
     const base = (state.config.liveApiUrl || '').replace(/\/$/, '');
-    const response = await fetch(`${base}/api/state`, { signal: controller.signal, cache: 'no-store', credentials: 'omit' });
+    const response = await fetch(state.presenceUrl(`${base}/api/state`), { signal: controller.signal, cache: 'no-store', credentials: 'omit' });
     if (!response.ok) throw new Error('State source unavailable');
     const live = await response.json();
     if (!live || live.mode !== 'live') throw new Error('Invalid state response');
@@ -458,6 +459,7 @@ async function init() {
     const config = await response.json();
     if (!Array.isArray(config.floors) || !config.floors.length || !config.timezone) throw new Error('Invalid configuration');
     state.config = config;
+    state.presenceUrl = createPresence(config.buildingId);
     state.profile = buildRoute(config);
     setupFloorPicker();
     setupRoute();

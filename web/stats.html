@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1b1e23">
+  <meta name="robots" content="noindex,nofollow">
+  <title>נתוני שימוש · מעלית שבת</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%231b1e23'/%3E%3Cpath d='M17 46V31m15 15V18m15 28V25' fill='none' stroke='%23e5b76f' stroke-width='5'/%3E%3C/svg%3E">
+  <link rel="preload" href="./fonts/Heebo-Variable.ttf" as="font" type="font/ttf" crossorigin>
+  <link rel="stylesheet" href="./stats.css">
+  <script type="module" src="./stats.js"></script>
+</head>
+<body>
+  <main class="stats-shell">
+    <header class="page-header">
+      <div>
+        <p class="eyebrow">מעלית שבת <span id="building-name"></span></p>
+        <h1>נתוני שימוש</h1>
+        <p class="muted">דפדפנים שבהם האתר גלוי על המסך · לפי שעון ישראל</p>
+      </div>
+      <a class="back-link" href="./">לאתר המעלית <span aria-hidden="true">←</span></a>
+    </header>
+
+    <section class="overview" aria-label="מצב נוכחי">
+      <div class="active-card">
+        <span class="eyebrow">פעילים כרגע</span>
+        <strong id="active-now" class="active-count" aria-live="polite">—</strong>
+        <span class="muted">דיווח ב־90 השניות האחרונות</span>
+      </div>
+      <div class="collection-card">
+        <div class="connection-line" id="connection" data-status="loading"><span class="status-dot" aria-hidden="true"></span><span id="status-text" role="status">טוען נתונים…</span></div>
+        <p class="muted">עדכון אחרון: <time id="last-refresh">—</time></p>
+        <p class="muted">תחילת האיסוף: <time id="collection-start">—</time></p>
+        <button id="refresh-button" type="button" class="quiet-button">רענון הנתונים</button>
+      </div>
+    </section>
+
+    <section class="history" aria-labelledby="history-title">
+      <div class="section-heading">
+        <div><p class="eyebrow">מגמות לאורך זמן</p><h2 id="history-title">פעילות לפי שעה</h2></div>
+        <p class="muted" id="range-label">24 השעות האחרונות</p>
+      </div>
+      <div class="range-presets" role="group" aria-label="טווח מהיר">
+        <button type="button" data-range="24h" aria-pressed="true">24 שעות</button>
+        <button type="button" data-range="today" aria-pressed="false">היום</button>
+        <button type="button" data-range="week" aria-pressed="false">7 ימים</button>
+      </div>
+      <form id="range-form" class="range-form">
+        <label>מתאריך<input type="date" id="start-date" required></label>
+        <label>עד תאריך<input type="date" id="end-date" required></label>
+        <button type="submit">הצגת הטווח</button>
+        <p id="range-error" class="error-text" role="alert" hidden></p>
+      </form>
+
+      <div class="chart-heading">
+        <label class="metric-control">נתון בגרף
+          <select id="metric-select">
+            <option value="uniqueVisitors">מבקרים שונים בשעה</option>
+            <option value="peakConcurrent">שיא פעילים במקביל</option>
+            <option value="averageConcurrent">ממוצע פעילים במקביל</option>
+          </select>
+        </label>
+        <div class="legend" aria-label="מקרא"><span><i class="legend-value"></i>נמדד</span><span><i class="legend-partial"></i>חלקי</span><span><i class="legend-missing"></i>אין נתונים</span></div>
+      </div>
+      <p id="chart-summary" class="chart-summary muted">הנתונים יופיעו לאחר תחילת האיסוף.</p>
+      <div id="chart-scroll" class="chart-scroll" tabindex="0" role="region" aria-label="גרף פעילות לפי שעה, ניתן לגלילה אופקית">
+        <svg id="hour-chart" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="chart-title chart-description" viewBox="0 0 900 250">
+          <title id="chart-title">מבקרים שונים בכל שעה</title>
+          <desc id="chart-description">הערכים המדויקים מוצגים בטבלה שמתחת לגרף.</desc>
+        </svg>
+      </div>
+      <p class="chart-help muted">כל עמודה היא שעה אחת. ניתן לגלול את הגרף; הערכים המדויקים מופיעים בטבלה.</p>
+      <div class="table-heading"><h3>פירוט לפי שעה</h3><span class="muted">השעות האחרונות מוצגות תחילה</span></div>
+      <div class="table-scroll" tabindex="0" role="region" aria-label="טבלת פעילות לפי שעה, ניתן לגלילה אופקית">
+        <table>
+          <caption class="visually-hidden">מבקרים שונים, שיא וממוצע פעילים בכל שעה לפי שעון ישראל</caption>
+          <thead><tr><th scope="col">תחילת שעה</th><th scope="col">מבקרים שונים</th><th scope="col">שיא במקביל</th><th scope="col">ממוצע במקביל</th><th scope="col">כיסוי המדידה</th></tr></thead>
+          <tbody id="hours-table"><tr><td colspan="5" class="empty-cell">טוען נתונים…</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="measurement-notes" aria-labelledby="notes-title">
+      <h2 id="notes-title">איך קוראים את הנתונים?</h2>
+      <div class="notes-grid">
+        <p><strong>דפדפנים, לא אנשים</strong>כמה לשוניות באותו דפדפן נספרות פעם אחת. טלפון ומחשב נספרים בנפרד. דף הנתונים עצמו אינו נספר.</p>
+        <p><strong>ממוצע לפי זמן</strong>ממוצע הפעילים מחושב רק בזמן שבו האיסוף פעל. חוסר נתונים אינו אפס מבקרים; שעה נוכחית וכיסוי חלקי מסומנים בנפרד.</p>
+        <p><strong>היסטוריה של 90 ימים</strong>האיסוף מתחיל עם הפעלת המנגנון. מספר המבקרים השונים מחושב לכל שעה בנפרד ואינו מיועד לחיבור לסכום יומי.</p>
+      </div>
+    </section>
+    <footer>מתעדכן כל 30 שניות כשהדף גלוי · השעות כוללות היסט מ־UTC כדי להבחין במעבר לשעון חורף</footer>
+  </main>
+  <noscript><p class="noscript">יש להפעיל JavaScript כדי להציג את נתוני השימוש.</p></noscript>
+</body>
+</html>

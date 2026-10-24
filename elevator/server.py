@@ -12,8 +12,9 @@ from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Thread
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
+from .analytics import VisitorAnalytics
 from .state import ObservationStore
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -22,6 +23,13 @@ ROOT = Path(__file__).resolve().parent.parent
 class DashboardHTTPServer(ThreadingHTTPServer):
     # Many always-on screens can poll at the same instant after reconnecting.
     request_queue_size = 128
+
+    def server_close(self):
+        try:
+            super().server_close()
+        finally:
+            if getattr(self, "owns_analytics", False) and self.analytics is not None:
+                self.analytics.close()
 
 
 def load_env(path):
@@ -39,8 +47,9 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                       ".json": "application/json; charset=utf-8", ".html": "text/html; charset=utf-8",
                       ".css": "text/css; charset=utf-8"}
 
-    def __init__(self, *args, store, config, token="", allowed_origin="", **kwargs):
+    def __init__(self, *args, store, config, token="", allowed_origin="", analytics=None, **kwargs):
         self.store, self.config, self.token = store, config, token
+        self.analytics = analytics
         self.allowed_origin = allowed_origin
         super().__init__(*args, directory=str(ROOT / "web"), **kwargs)
 
@@ -62,11 +71,40 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         self.wfile.write(payload)
 
     def do_GET(self):
-        path = urlsplit(self.path).path
+        url = urlsplit(self.path)
+        path = url.path
         if path == "/api/state":
+            self.cache_control = "no-store"
+            if self.analytics is not None:
+                try:
+                    params = parse_qs(url.query, max_num_fields=8)
+                    visitor = params.get("visitor", [])
+                    if len(visitor) == 1:
+                        self.analytics.record(visitor[0])
+                except Exception:
+                    # A failed statistics disk must never break elevator state.
+                    pass
             state = self.store.snapshot()
             state["monitorOnly"] = self.config.get("monitorOnly", False)
             self.send_json(state)
+        elif path == "/api/analytics":
+            self.cache_control = "no-store"
+            try:
+                params = parse_qs(url.query, keep_blank_values=True, max_num_fields=2)
+                if any(key not in ("start", "end") or len(values) != 1
+                       for key, values in params.items()):
+                    raise ValueError("Use start and end date parameters only")
+                if self.analytics is None:
+                    self.send_json({"available": False, "error": "Visitor analytics is unavailable"}, 503)
+                    return
+                result = self.analytics.snapshot(**{key: value[0] for key, value in params.items()})
+            except ValueError as error:
+                self.send_json({"error": str(error)}, 400)
+                return
+            except Exception:
+                self.send_json({"available": False, "error": "Visitor analytics is unavailable"}, 503)
+                return
+            self.send_json(result)
         elif path == "/api/health":
             self.send_json({"ok": True, "sourceMode": self.config["sourceMode"]})
         elif path == "/config.json":
@@ -81,15 +119,20 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         return None
 
     def log_request(self, code="-", size="-"):
-        # Avoid continuous SD-card log writes for normal five-second polling.
-        if str(code) == "200" and urlsplit(self.path).path in ("/api/state", "/api/health"):
+        # Do not log presence query identifiers or addresses, including errors.
+        path = urlsplit(self.path).path
+        if path in ("/api/state", "/api/analytics") or (str(code) == "200" and path == "/api/health"):
             return
         super().log_request(code, size)
 
     def do_OPTIONS(self):
         self.send_response(204)
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Authorization, Content-Type")
+        if urlsplit(self.path).path == "/api/analytics":
+            self.send_header("Allow", "GET, OPTIONS")
+            self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+        else:
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "Authorization, Content-Type")
         self.end_headers()
 
     def do_POST(self):
@@ -123,7 +166,7 @@ class PublicDashboardHandler(DashboardHandler):
     """Read-only endpoint for a tunnel; never serve files or accept device events."""
 
     cache_control = "no-store"
-    public_paths = frozenset(("/api/state", "/api/health"))
+    public_paths = frozenset(("/api/state", "/api/health", "/api/analytics"))
 
     def do_GET(self):
         if urlsplit(self.path).path in self.public_paths:
@@ -156,7 +199,8 @@ class PublicDashboardHandler(DashboardHandler):
 
 
 def create_server(host="127.0.0.1", port=8000, *, live=False, state_path=None, token=None,
-                  store=None, public=False, runtime_config=None, monitor_only=False):
+                  store=None, public=False, runtime_config=None, monitor_only=False,
+                  analytics=None, analytics_path=None, analytics_background=True):
     config = json.loads((ROOT / "web" / "config.json").read_text(encoding="utf-8"))
     if live:
         config["sourceMode"] = "live"
@@ -169,11 +213,26 @@ def create_server(host="127.0.0.1", port=8000, *, live=False, state_path=None, t
                                  cycle_tolerance_percent=runtime_config.get("cycleTolerancePercent", 15) if runtime_config else 15,
                                  event_kind="departure")
     handler_class = PublicDashboardHandler if public else DashboardHandler
+    owns_analytics = False
+    if analytics is None and analytics_path is not None:
+        try:
+            analytics = VisitorAnalytics(analytics_path, background=analytics_background)
+            owns_analytics = True
+        except Exception:
+            logging.getLogger(__name__).exception("Visitor analytics is unavailable; elevator service will continue")
     handler = partial(handler_class, store=store, config=config,
+                      analytics=analytics,
                       token=token if token is not None else os.getenv("INGEST_TOKEN", ""),
                       allowed_origin=os.getenv("ALLOWED_ORIGIN", ""))
-    server = DashboardHTTPServer(("127.0.0.1" if public else host, port), handler)
+    try:
+        server = DashboardHTTPServer(("127.0.0.1" if public else host, port), handler)
+    except Exception:
+        if owns_analytics:
+            analytics.close()
+        raise
     server.store = store
+    server.analytics = analytics
+    server.owns_analytics = owns_analytics
     return server
 
 
@@ -215,7 +274,8 @@ def main():
         device = int(device)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     server = create_server(args.host, args.port, live=args.live, state_path=ROOT / "data" / "state.json",
-                           runtime_config=runtime_config, monitor_only=args.monitor_only)
+                           runtime_config=runtime_config, monitor_only=args.monitor_only,
+                           analytics_path=ROOT / "data" / "analytics.sqlite3")
     public_server = None
     public_thread = None
     detector = None
@@ -225,7 +285,7 @@ def main():
             if args.public_port == server.server_port:
                 raise ValueError("The public API and local ingestion must use different ports")
             public_server = create_server(port=args.public_port, live=args.live, store=server.store, public=True,
-                                           monitor_only=args.monitor_only)
+                                           monitor_only=args.monitor_only, analytics=server.analytics)
             public_thread = Thread(target=public_server.serve_forever, name="elevator-public-api", daemon=True)
             public_thread.start()
             print(f"Public read-only API: http://127.0.0.1:{public_server.server_port}", flush=True)

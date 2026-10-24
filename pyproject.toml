@@ -3,7 +3,9 @@ name = "shabat_elevator"
 version = "0.2.0"
 description = "Shabbat elevator dashboard for Menachem Begin 17, Givat Shmuel"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "tzdata>=2026.5 ; sys_platform == 'win32'",
+]
 
 [dependency-groups]
 dev = ["playwright>=1.58,<2"]

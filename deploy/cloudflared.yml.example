@@ -6,6 +6,6 @@ credentials-file: secrets/REPLACE_WITH_TUNNEL_UUID.json
 
 ingress:
   - hostname: elevator-api.udidaniel.com
-    path: ^/api/(state|health)$
+    path: ^/api/(state|health|analytics)$
     service: http://127.0.0.1:8001
   - service: http_status:404
