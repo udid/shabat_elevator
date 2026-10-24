@@ -127,6 +127,55 @@ class AnalyticsTests(unittest.TestCase):
         row = analytics._db.execute("SELECT visitor_seconds, coverage_seconds FROM hours").fetchone()
         self.assertEqual(row, (90, 3600))
 
+    def test_live_updates_do_not_write_until_the_hour_boundary(self):
+        analytics = self.create()
+        baseline_changes = analytics._db.total_changes
+        analytics.record(A)
+        for second in range(30, 3600, 30):
+            self.at(second)
+            analytics.tick()
+            snapshot = analytics.snapshot()
+            self.assertEqual(snapshot["activeNow"], int(second < 90))
+            self.assertEqual(snapshot["hours"][-1]["coverageSeconds"], second)
+            self.assertEqual(analytics._db.total_changes, baseline_changes)
+        self.assertEqual(analytics._db.execute("SELECT count(*) FROM hours").fetchone()[0], 0)
+        self.at(3600)
+        analytics.tick()
+        saved = analytics._db.execute(
+            "SELECT unique_visitors, peak, visitor_seconds, coverage_seconds FROM hours"
+        ).fetchone()
+        self.assertEqual(saved, (1, 1, 90, 3600))
+        saved_changes = analytics._db.total_changes
+        analytics.record(B)
+        analytics.snapshot()
+        self.assertEqual(analytics._db.total_changes, saved_changes)
+
+    def test_partial_first_hour_and_shutdown_preserve_hourly_dedup(self):
+        self.at(3570)
+        analytics = self.create()
+        analytics.record(A)
+        self.at(3600)
+        analytics.record(A)
+        rows = analytics._db.execute(
+            "SELECT unique_visitors, coverage_seconds FROM hours ORDER BY start"
+        ).fetchall()
+        self.assertEqual(rows, [(1, 30), (1, 0)])
+        self.assertEqual(analytics._db.execute(
+            "SELECT visitor, hour FROM current_visitors"
+        ).fetchall(), [(A, int(self.start.timestamp()) + 3600)])
+        # Saving a partial hour on graceful shutdown is intentional, even when
+        # the next scheduled hourly checkpoint is not due yet.
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "analytics.sqlite3"
+            persistent = self.create(path)
+            persistent.record(B)
+            self.at(3630)
+            persistent.close()
+            with closing(sqlite3.connect(path)) as reader:
+                self.assertEqual(reader.execute(
+                    "SELECT unique_visitors, coverage_seconds FROM hours"
+                ).fetchone(), (1, 30))
+
     def test_old_aggregates_are_pruned(self):
         analytics = self.create()
         analytics.record(A)
@@ -148,11 +197,11 @@ class AnalyticsTests(unittest.TestCase):
         analytics.tick()
         self.assertEqual(len(analytics._active), 1)
         self.assertEqual(len(analytics._visitors), 2)
-        self.assertEqual(analytics._db.execute("SELECT count(*) FROM current_visitors").fetchone()[0], 2)
         hour = analytics.snapshot()["hours"][-1]
         self.assertEqual(hour["uniqueVisitors"], 2)
         self.assertEqual(hour["peakConcurrent"], 1)
         self.assertTrue(hour["limited"])
+        self.assertEqual(analytics._db.execute("SELECT count(*) FROM current_visitors").fetchone()[0], 0)
 
     def test_local_date_ranges_follow_spring_and_autumn_dst(self):
         for now, day, count, first, last in (
@@ -239,6 +288,7 @@ class AnalyticsTests(unittest.TestCase):
     def test_storage_failure_stops_collection_and_close_is_idempotent(self):
         analytics = self.create()
         analytics._db.close()
+        self.at(3600)
         with self.assertRaises(sqlite3.ProgrammingError):
             analytics.tick()
         with self.assertRaises(AnalyticsUnavailable):

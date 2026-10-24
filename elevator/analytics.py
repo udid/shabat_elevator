@@ -27,13 +27,15 @@ class AnalyticsUnavailable(RuntimeError):
 class VisitorAnalytics:
     """Integrate concurrency over known collection time, never over restarts.
 
-    Visitor IDs survive only in the current hour's deduplication table. Hourly
-    aggregates contain no IDs. A checkpoint runs even with no dashboard open.
+    Saved visitor IDs deduplicate the most recently checkpointed hour. Hourly
+    aggregates contain no IDs. Collection runs every 30 seconds; completed
+    hours are checkpointed even with no dashboard open.
     """
 
     active_window_seconds = 90
     retention_days = 90
-    flush_seconds = 30
+    collection_seconds = 30
+    flush_seconds = HOUR
     max_active = 10_000
     max_hour_visitors = 50_000
 
@@ -141,7 +143,7 @@ class VisitorAnalytics:
             # including a restart while the wall clock is behind its checkpoint.
             self._active.clear()
             return now
-        if (now - self._last > 3 * self.flush_seconds
+        if (now - self._last > 3 * self.collection_seconds
                 or abs(wall_elapsed - elapsed) > 5 or elapsed < 0):
             # Missed multiple collector ticks, suspend, or a clock adjustment:
             # the elapsed interval cannot be claimed as measured uptime.
@@ -228,16 +230,18 @@ class VisitorAnalytics:
             raise
 
     def _maybe_flush(self, now):
-        if now - self._last_flush >= self.flush_seconds:
+        # Persist at hour boundaries, independently of frequent live reads and
+        # collection ticks. This also expires the previous hour's saved IDs.
+        if now // self.flush_seconds > self._last_flush // self.flush_seconds:
             self._flush(now)
 
     def tick(self):
         with self.lock:
             self._check_available()
-            self._flush(self._advance(self._now()))
+            self._maybe_flush(self._advance(self._now()))
 
     def _run(self):
-        while not self._stop.wait(self.flush_seconds):
+        while not self._stop.wait(self.collection_seconds):
             try:
                 self.tick()
             except Exception:
