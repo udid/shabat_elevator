@@ -9,7 +9,9 @@ wheels/
 .env.*
 !.env.example
 secrets/
-data/
+/data/*
+!/data/server-config.json
+!/data/server-config.notes.txt
 downloads/
 backups/
 logs/

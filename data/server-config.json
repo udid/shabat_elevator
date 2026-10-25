@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "eventKind": "departure",
+  "floor": 7,
+  "defaultCycleSeconds": 559.1518185905986,
+  "cycleTolerancePercent": 2.0,
+  "detector": {
+    "profile": "band_level_snr_v2",
+    "channel": 0,
+    "frequencyLowHz": 3450.0,
+    "frequencyHighHz": 3800.0,
+    "snrThresholdDb": 8.0,
+    "noiseBandPower": 3.2461799914784706e-09,
+    "minimumRmsDbfs": -85.0,
+    "minimumEventSeconds": 2.1343781661987307,
+    "maximumEventSeconds": 9.28055118560791,
+    "mergeGapSeconds": 3.0,
+    "rearmSeconds": 11.77251648902893,
+    "minimumEventBandDbfs": -60.293828163371444,
+    "minimumFrameBandDbfs": -66.18917658910405,
+    "minimumTonalFraction": 0.15
+  }
+}

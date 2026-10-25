@@ -1,0 +1,1 @@
+2026-10-25: minimumTonalFraction was manually set to 0.15 (15%); its original calibrated value was 0.18030139446258542 (about 18%).
