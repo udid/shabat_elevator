@@ -1,4 +1,4 @@
-import { formatMetric, hourParts, coverageDetails } from './stats-model.js';
+import { formatMetric, formatDateTime, hourParts, coverageDetails } from './stats-model.js';
 
 const svgNS = 'http://www.w3.org/2000/svg';
 function node(name, attributes = {}, value) {
@@ -19,6 +19,7 @@ export function createHourlyChart(container, chart, detail) {
   let geometry;
   let selection;
   let renderedWidth = 0;
+  let shabbatSpans = [];
 
   function select(index) {
     if (!points.length) return;
@@ -41,6 +42,14 @@ export function createHourlyChart(container, chart, detail) {
     const coverage = document.createElement('small');
     coverage.textContent = `${point.coverage.label} · ${point.coverage.detail}`;
     detail.replaceChildren(heading, time, coverage);
+    const shabbat = shabbatSpans.find((span) => Date.parse(span.start) < Date.parse(hour.end) && Date.parse(span.end) > Date.parse(hour.start));
+    if (shabbat) {
+      const note = document.createElement('small');
+      note.className = 'chart-shabbat-detail';
+      const fullHour = Date.parse(shabbat.start) <= Date.parse(hour.start) && Date.parse(shabbat.end) >= Date.parse(hour.end);
+      note.textContent = `${fullHour ? 'שבת' : 'חלק מהשעה בשבת'} · כניסה ${formatDateTime(shabbat.start)} · יציאה ${formatDateTime(shabbat.end)}`;
+      detail.append(note);
+    }
   }
 
   function draw() {
@@ -51,14 +60,39 @@ export function createHourlyChart(container, chart, detail) {
     renderedWidth = width;
     const left = 48;
     const right = width - 14;
-    const top = 16;
+    const top = 30;
     const bottom = 208;
-    geometry = { left, right, top, bottom, width };
+    const start = Date.parse(hours[0]?.start);
+    const end = Date.parse(hours.at(-1)?.end);
+    const timeX = (value) => left + (value - start) / (end - start) * (right - left);
+    geometry = { left, right, top, bottom, width, start, end };
     chart.setAttribute('viewBox', `0 0 ${width} 260`);
     chart.replaceChildren(
       node('title', { id: 'chart-title' }, label),
-      node('desc', { id: 'chart-description' }, 'גרף קווי לפי שעה, מהישן לחדש. פער בקו מציין שאין מדידה. קו מקווקו ונקודה חלולה מציינים מדידה חלקית. הערכים המדויקים מופיעים גם בטבלה.'),
+      node('desc', { id: 'chart-description' }, 'גרף קווי לפי שעה, מהישן לחדש. רקע כחול מסמן שבת מזמן הכניסה ועד היציאה. פער בקו מציין שאין מדידה. קו מקווקו ונקודה חלולה מציינים מדידה חלקית. הערכים המדויקים מופיעים גם בטבלה.'),
     );
+    for (const span of shabbatSpans) {
+      const visibleStart = Math.max(start, Date.parse(span.start));
+      const visibleEnd = Math.min(end, Date.parse(span.end));
+      if (!(visibleEnd > visibleStart)) continue;
+      const x = timeX(visibleStart);
+      const bandWidth = timeX(visibleEnd) - x;
+      chart.append(node('rect', {
+        x, y: 8, width: bandWidth, height: bottom - 8, class: 'chart-shabbat',
+        'data-start': span.start, 'data-end': span.end,
+        'data-visible-start': new Date(visibleStart).toISOString(),
+        'data-visible-end': new Date(visibleEnd).toISOString(), 'aria-hidden': 'true',
+      }));
+      for (const boundary of [Date.parse(span.start), Date.parse(span.end)]) {
+        if (boundary >= start && boundary <= end) chart.append(node('line', {
+          x1: timeX(boundary), x2: timeX(boundary), y1: 8, y2: bottom,
+          class: 'chart-shabbat-boundary', 'aria-hidden': 'true',
+        }));
+      }
+      if (bandWidth >= 32) chart.append(node('text', {
+        x: x + bandWidth / 2, y: 22, 'text-anchor': 'middle', class: 'chart-shabbat-label', 'aria-hidden': 'true',
+      }, 'שבת'));
+    }
     const values = hours.map((hour) => hour[metric]).filter((value) => typeof value === 'number' && Number.isFinite(value));
     const maximum = Math.max(1, Math.max(0, ...values));
     const rawStep = maximum / 4;
@@ -76,7 +110,7 @@ export function createHourlyChart(container, chart, detail) {
       const coverage = coverageDetails(hour, data.generatedAt);
       const value = hour[metric];
       return {
-        x: hours.length === 1 ? (left + right) / 2 : left + index / (hours.length - 1) * (right - left),
+        x: timeX((Date.parse(hour.start) + Date.parse(hour.end)) / 2),
         y: bottom - (typeof value === 'number' ? value : 0) / ceiling * (bottom - top),
         hasValue: typeof value === 'number' && Number.isFinite(value) && coverage.kind !== 'missing',
         coverage,
@@ -124,7 +158,9 @@ export function createHourlyChart(container, chart, detail) {
     if (!geometry || !points.length) return;
     const bounds = chart.getBoundingClientRect();
     const x = (event.clientX - bounds.left) / bounds.width * geometry.width;
-    select(Math.round((x - geometry.left) / (geometry.right - geometry.left) * (points.length - 1)));
+    const at = geometry.start + (x - geometry.left) / (geometry.right - geometry.left) * (geometry.end - geometry.start);
+    const index = data.hours.findIndex((hour) => at < Date.parse(hour.end));
+    select(index < 0 ? points.length - 1 : index);
   }
   chart.addEventListener('pointerdown', selectAt);
   chart.addEventListener('pointermove', (event) => { if (event.pointerType === 'mouse') selectAt(event); });
@@ -137,17 +173,19 @@ export function createHourlyChart(container, chart, detail) {
   });
   new ResizeObserver(() => { if (Math.abs(container.clientWidth - renderedWidth) > 1) draw(); }).observe(container);
   return {
-    render(nextData, nextMetric, nextLabel) {
+    render(nextData, nextMetric, nextLabel, nextShabbatSpans = []) {
       if (data?.hours[0]?.start !== nextData.hours[0]?.start) selected = null;
       data = nextData;
       metric = nextMetric;
       label = nextLabel;
+      shabbatSpans = nextShabbatSpans;
       draw();
     },
     clear() {
       data = null;
       points = [];
       selected = null;
+      shabbatSpans = [];
       chart.replaceChildren();
       detail.textContent = 'טוען את הטווח שנבחר…';
     },

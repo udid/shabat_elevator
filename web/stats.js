@@ -1,4 +1,5 @@
 import { createHourlyChart } from './stats-chart.js';
+import { fetchShabbatSpans } from './stats-shabbat.js';
 import { localDate, shiftDate, validRange, formatMetric, formatDateTime, hourParts, coverageDetails } from './stats-model.js';
 
 const $ = (id) => document.getElementById(id);
@@ -7,7 +8,7 @@ const METRICS = {
   peakConcurrent: 'שיא פעילים במקביל',
   averageConcurrent: 'ממוצע פעילים במקביל',
 };
-const state = { config: null, data: null, preset: '24h', range: null, metric: 'uniqueVisitors', request: 0, controller: null, receivedAt: 0 };
+const state = { config: null, data: null, preset: '24h', range: null, metric: 'uniqueVisitors', request: 0, controller: null, receivedAt: 0, shabbat: null };
 const hourlyChart = createHourlyChart($('chart-scroll'), $('hour-chart'), $('chart-detail'));
 
 function text(id, value) { $(id).textContent = String(value); }
@@ -25,9 +26,50 @@ function showRangeError(message) {
   text('range-error', message);
   $('range-error').hidden = !message;
 }
+function chartRange() {
+  const hours = state.data?.hours || [];
+  const start = hours[0]?.start;
+  const end = hours.at(-1)?.end;
+  return { start, end, key: `${start}/${end}` };
+}
+function showShabbatStatus() {
+  const { start, end, key } = chartRange();
+  const calendar = state.shabbat;
+  if (!start || !end) { text('shabbat-status', ''); return; }
+  if (calendar?.key !== key || calendar.status === 'loading') {
+    text('shabbat-status', 'טוען את זמני השבת…');
+  } else if (calendar.status !== 'live') {
+    text('shabbat-status', 'זמני השבת אינם זמינים כרגע · נתוני השימוש מוצגים ללא הדגשת שבת.');
+  } else {
+    const overlaps = calendar.spans.some((span) => Date.parse(span.start) < Date.parse(end) && Date.parse(span.end) > Date.parse(start));
+    text('shabbat-status', overlaps ? 'הרקע הכחול מסמן שבת, מזמן הכניסה ועד היציאה.' : 'אין שעות שבת בטווח המוצג.');
+  }
+}
+function refreshShabbat(force = false) {
+  const { start, end, key } = chartRange();
+  if (!start || !end) { showShabbatStatus(); return; }
+  const previous = state.shabbat;
+  if (previous?.key === key && (previous.status === 'loading' || previous.status === 'live'
+    || !force && Date.now() - previous.attemptedAt < 60_000)) {
+    showShabbatStatus();
+    return;
+  }
+  const request = { key, status: 'loading', spans: [], attemptedAt: Date.now() };
+  state.shabbat = request;
+  showShabbatStatus();
+  // Calendar failure must not prevent the usage data or chart from loading.
+  fetchShabbatSpans(state.config, start, end).catch(() => ({ status: 'unavailable', spans: [] })).then((result) => {
+    if (state.shabbat !== request) return;
+    Object.assign(request, result);
+    if (chartRange().key !== key || !state.data) return;
+    showShabbatStatus();
+    renderChart();
+  });
+}
 function renderChart() {
   const hours = state.data?.hours || [];
-  hourlyChart.render(state.data, state.metric, METRICS[state.metric]);
+  const spans = state.shabbat?.key === chartRange().key ? state.shabbat.spans : [];
+  hourlyChart.render(state.data, state.metric, METRICS[state.metric], spans);
   const measured = hours.filter((hour) => coverageDetails(hour, state.data.generatedAt).kind !== 'missing').length;
   text('chart-summary', measured ? `${formatMetric(measured)} מתוך ${formatMetric(hours.length)} שעות עם מדידה. ${state.metric === 'averageConcurrent' ? 'הממוצע מתייחס לזמן שנמדד בלבד.' : 'כל הטווח מוצג בגרף, ללא גלילה.'}` : 'אין עדיין נתונים לטווח שנבחר. שעות ללא מדידה אינן נספרות כאפס.');
 }
@@ -133,7 +175,7 @@ function renderTable() {
   $('hours-table').replaceChildren(fragment);
 }
 
-function renderData() {
+function renderData(force = false) {
   const data = state.data;
   text('active-now', formatMetric(data.activeNow));
   connection('live', 'הנתונים מעודכנים');
@@ -143,6 +185,7 @@ function renderData() {
   $('collection-start').dateTime = data.collectionStartedAt;
   text('range-label', state.preset === '24h' ? '24 השעות האחרונות · כולל השעה הנוכחית' : `${state.range.start.split('-').reverse().join('.')} — ${state.range.end.split('-').reverse().join('.')}`);
   renderFloors();
+  refreshShabbat(force);
   renderChart();
   renderTable();
   if (document.visibilityState !== 'visible') invalidateCurrent('הרענון יתחדש כשהדף גלוי', 'paused');
@@ -180,12 +223,13 @@ async function refresh(force = false) {
     if (request !== state.request) return;
     state.data = data;
     state.receivedAt = Date.now();
-    renderData();
+    renderData(force);
   } catch {
     if (request !== state.request) return;
     invalidateCurrent(state.data ? 'אין חיבור · ההיסטוריה מוצגת מהעדכון האחרון' : 'הנתונים אינם זמינים כרגע · נסו לרענן');
     if (!state.data) {
       text('chart-summary', 'ממתינים לחיבור לשירות הנתונים.');
+      text('shabbat-status', '');
       text('floor-summary', 'לא ניתן לטעון את נתוני הקומות כרגע.');
       text('chart-detail', 'הנתונים אינם זמינים כרגע.');
       const cell = document.createElement('td');
@@ -215,6 +259,7 @@ function selectRange(preset, range) {
   text('floor-summary', 'טוען נתוני קומות…');
   text('floor-current-note', '');
   text('chart-summary', 'טוען את הטווח שנבחר…');
+  text('shabbat-status', 'טוען את זמני השבת…');
   $('hours-table').replaceChildren();
   refresh(true);
 }

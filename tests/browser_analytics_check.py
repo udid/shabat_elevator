@@ -15,6 +15,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Thread
 from urllib.parse import parse_qs, urlsplit
+from zoneinfo import ZoneInfo
 
 from playwright.sync_api import expect, sync_playwright
 
@@ -24,6 +25,27 @@ ROOT = Path(__file__).resolve().parents[1]
 ARTIFACTS = ROOT / ".artifacts"
 CHROME = os.getenv("BROWSER_PATH", r"C:\Program Files\Google\Chrome\Application\chrome.exe")
 NOW = datetime(2026, 10, 25, 12, 30, tzinfo=timezone.utc)
+
+
+def shabbat_fixture(url):
+    """Candle/exit events, including a Saturday-to-holiday transition."""
+    query = parse_qs(urlsplit(url).query)
+    first = datetime.fromisoformat(query["start"][0]).date()
+    last = datetime.fromisoformat(query["end"][0]).date()
+    events = []
+    day = first
+    while day <= last:
+        if day.weekday() in (2, 4):
+            events.append({"category": "candles", "date": datetime(day.year, day.month, day.day, 17, 15,
+                           tzinfo=ZoneInfo("Asia/Jerusalem")).isoformat()})
+        elif day.weekday() in (3, 5) or day.isoformat() == "2026-09-13":
+            # Weekday holidays must not be shaded as שבת. On September 12,
+            # the next holiday's candles represent Sabbath exit, not Sunday.
+            category = "candles" if day.isoformat() == "2026-09-12" else "havdalah"
+            events.append({"category": category, "date": datetime(day.year, day.month, day.day, 18, 11,
+                           tzinfo=ZoneInfo("Asia/Jerusalem")).isoformat()})
+        day += timedelta(days=1)
+    return {"items": events}
 
 
 def fixture(count=24):
@@ -75,6 +97,40 @@ def assert_chart_fits(page):
     }""")
 
 
+def assert_shabbat_bands(page, count, expected_count):
+    expect(page.locator(".chart-shabbat")).to_have_count(expected_count)
+    expect(page.locator(".legend-shabbat")).to_be_visible()
+    data = fixture(count)
+    geometry = page.evaluate("""() => {
+        const grid = document.querySelector('.chart-grid');
+        return {
+            left: +grid.getAttribute('x1'), right: +grid.getAttribute('x2'),
+            bands: Array.from(document.querySelectorAll('.chart-shabbat'), band => ({
+                x: +band.getAttribute('x'), width: +band.getAttribute('width'),
+                start: band.dataset.start, end: band.dataset.end,
+                visibleStart: band.dataset.visibleStart, visibleEnd: band.dataset.visibleEnd,
+            })),
+        };
+    }""")
+    start = datetime.fromisoformat(data["rangeStart"]).timestamp()
+    end = datetime.fromisoformat(data["rangeEnd"]).timestamp()
+    scale = (geometry["right"] - geometry["left"]) / (end - start)
+    for band in geometry["bands"]:
+        original_start = datetime.fromisoformat(band["start"].replace("Z", "+00:00"))
+        original_end = datetime.fromisoformat(band["end"].replace("Z", "+00:00"))
+        local_start = original_start.astimezone(ZoneInfo("Asia/Jerusalem"))
+        local_end = original_end.astimezone(ZoneInfo("Asia/Jerusalem"))
+        assert (local_start.weekday(), local_start.hour, local_start.minute) == (4, 17, 15)
+        assert (local_end.weekday(), local_end.hour, local_end.minute) == (5, 18, 11)
+        visible_start = max(start, original_start.timestamp())
+        visible_end = min(end, original_end.timestamp())
+        assert datetime.fromisoformat(band["visibleStart"].replace("Z", "+00:00")).timestamp() == visible_start
+        assert datetime.fromisoformat(band["visibleEnd"].replace("Z", "+00:00")).timestamp() == visible_end
+        assert abs(band["x"] - (geometry["left"] + (visible_start - start) * scale)) < .1
+        assert abs(band["width"] - (visible_end - visible_start) * scale) < .1
+        assert band["x"] >= geometry["left"] and band["x"] + band["width"] <= geometry["right"] + .1
+
+
 class QuietHandler(SimpleHTTPRequestHandler):
     def log_message(self, *_args):
         pass
@@ -111,6 +167,8 @@ def main():
                 context.add_init_script(f"({WAKE_LOCK_MOCK})('granted')")
                 context.route("**/config.json", lambda route: route.fulfill(json=config))
                 context.route("https://www.hebcal.com/**", lambda route: route.fulfill(json=CALENDAR))
+                context.route("https://www.hebcal.com/hebcal*", lambda route: route.fulfill(
+                    json=shabbat_fixture(route.request.url) if "/stats.html" in route.request.frame.page.url else CALENDAR))
                 context.route("https://api.open-meteo.com/**", lambda route: route.fulfill(json=WEATHER))
                 context.on("page", lambda page: page.on("pageerror", lambda error: errors.append(str(error))))
                 return context
@@ -202,6 +260,7 @@ def main():
                 expect(page.locator("#hours-table tr")).to_have_count(24)
                 assert page.locator('meta[name="robots"]').get_attribute("content") == "noindex,nofollow"
                 assert_chart_fits(page)
+                assert_shabbat_bands(page, 24, 1)
                 table = page.locator("#hours-table").inner_text()
                 assert "אין נתונים" in table and "כיסוי חלקי" in table
                 assert "UTC+2" in table and "UTC+3" in table
@@ -216,6 +275,7 @@ def main():
                 chart.focus()
                 chart.press("Home")
                 expect(page.locator("#chart-detail")).to_contain_text("אין נתונים")
+                expect(page.locator("#chart-detail")).to_contain_text("שבת")
                 expect(page.locator(".chart-cursor")).to_have_attribute("data-index", "0")
                 expect(page.locator(".chart-selected")).to_have_count(0)
                 missing_detail = page.locator("#chart-detail").inner_text()
@@ -223,6 +283,11 @@ def main():
                 expect(page.locator("#chart-detail")).not_to_contain_text("אין נתונים")
                 expect(page.locator("#chart-detail")).to_contain_text("0")
                 expect(page.locator(".chart-selected")).to_have_attribute("data-index", "1")
+                expect(page.locator("#chart-detail")).to_contain_text("שבת")
+                chart.press("ArrowRight")
+                expect(page.locator("#chart-detail")).to_contain_text("שבת")
+                expect(page.locator("#chart-detail")).to_contain_text("18:11")
+                chart.press("ArrowLeft")
                 expect(page.locator('.chart-point[data-index="12"]')).to_have_count(0)
                 expect(page.locator('.chart-point[data-index="3"]')).to_have_class(re.compile(r"\bpartial\b"))
                 assert page.evaluate(r"""() => {
@@ -244,6 +309,7 @@ def main():
                 expect(page.locator("#chart-detail")).to_have_text(missing_detail, use_inner_text=True)
                 chart.press("End")
                 expect(page.locator("#chart-detail")).to_contain_text("שעה נוכחית")
+                expect(page.locator("#chart-detail")).not_to_contain_text("שבת")
                 if width < 700:
                     page.locator("#hour-chart").tap(position={"x": 45, "y": 80})
                     expect(page.locator("#chart-detail")).not_to_contain_text("שעה נוכחית")
@@ -258,6 +324,7 @@ def main():
                 assert query == {"start": ["2026-10-19"], "end": ["2026-10-25"]}
                 expect(page.locator("#hours-table tr")).to_have_count(168)
                 assert_chart_fits(page)
+                assert_shabbat_bands(page, 168, 1)
 
                 mode["count"] = 2160
                 page.locator("#start-date").fill("2026-07-28")
@@ -265,8 +332,10 @@ def main():
                 page.locator('#range-form button[type="submit"]').click()
                 expect(page.locator("#hours-table tr")).to_have_count(2160)
                 assert_chart_fits(page)
+                assert_shabbat_bands(page, 2160, 13)
                 page.set_viewport_size({"width": 320 if width > 700 else 1366, "height": height})
                 assert_chart_fits(page)
+                assert_shabbat_bands(page, 2160, 13)
                 page.set_viewport_size({"width": width, "height": height})
                 assert_chart_fits(page)
 
@@ -296,7 +365,64 @@ def main():
                 expect(page.locator("#floor-summary")).to_contain_text("אין נתוני קומות בטווח שנבחר")
                 expect(page.locator("#floor-list .floor-row")).to_have_count(0)
                 context.close()
-                print(f"PASS: stats {width}px, 24/168/2160 hours without chart scrolling, resize/touch/keyboard, floor use, DST and stale data")
+                print(f"PASS: stats {width}px, 24/168/2160 hours without chart scrolling, exact/clipped Sabbath bands, resize/touch/keyboard, floor use, DST and stale data")
+
+            # Calendar failure must not hide analytics or invent Sabbath times.
+            context = prepare(390, 844)
+            calendar_mode = {"fail": True}
+
+            def calendar_response(route):
+                if calendar_mode["fail"]:
+                    route.fulfill(status=503, json={"error": "unavailable"})
+                else:
+                    route.fulfill(json=shabbat_fixture(route.request.url))
+
+            context.route("https://www.hebcal.com/hebcal*", calendar_response)
+            context.route("**/api/analytics*", lambda route: route.fulfill(json=fixture()))
+            page = context.new_page()
+            page.clock.install(time=NOW)
+            page.goto(base + "/stats.html", wait_until="networkidle")
+            expect(page.locator("#active-now")).to_have_text("4")
+            expect(page.locator("#hours-table tr")).to_have_count(24)
+            expect(page.locator(".chart-shabbat")).to_have_count(0)
+            expect(page.locator("#shabbat-status")).to_contain_text("זמינ")
+            assert_chart_fits(page)
+            calendar_mode["fail"] = False
+            page.locator("#refresh-button").click()
+            assert_shabbat_bands(page, 24, 1)
+            expect(page.locator("#active-now")).to_have_text("4")
+            context.close()
+            print("PASS: unavailable Sabbath times leave analytics intact, manual refresh restores highlights")
+
+            # A delayed response for an old range must not replace the current bands.
+            context = prepare()
+            delayed_calendar = []
+            race_mode = {"count": 24}
+
+            def delayed_calendar_response(route):
+                if not delayed_calendar:
+                    delayed_calendar.append(route)
+                else:
+                    route.fulfill(json=shabbat_fixture(route.request.url))
+
+            context.route("https://www.hebcal.com/hebcal*", delayed_calendar_response)
+            context.route("**/api/analytics*", lambda route: route.fulfill(json=fixture(race_mode["count"])))
+            page = context.new_page()
+            page.clock.install(time=NOW)
+            with page.expect_request("https://www.hebcal.com/hebcal*"):
+                page.goto(base + "/stats.html", wait_until="domcontentloaded")
+            expect(page.locator("#active-now")).to_have_text("4")
+            assert len(delayed_calendar) == 1
+            race_mode["count"] = 2160
+            page.locator("#start-date").fill("2026-07-28")
+            page.locator("#end-date").fill("2026-10-25")
+            page.locator('#range-form button[type="submit"]').click()
+            assert_shabbat_bands(page, 2160, 13)
+            delayed_calendar[0].fulfill(json=shabbat_fixture(delayed_calendar[0].request.url))
+            page.clock.run_for(100)
+            assert_shabbat_bands(page, 2160, 13)
+            context.close()
+            print("PASS: stale calendar response cannot replace the selected range's highlights")
 
             # Exercise the real HTTP/SQLite contract too, without production data.
             sys.path.insert(0, str(ROOT))
