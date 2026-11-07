@@ -309,6 +309,118 @@ class AnalyticsTests(unittest.TestCase):
             with self.assertRaises(AnalyticsUnavailable):
                 analytics.record(A)
 
+    def test_floor_duration_deduplicates_tabs_and_follows_latest_selection(self):
+        analytics = self.create()
+        analytics.record(A, floor=7)
+        analytics.record(A, floor=7)
+        self.at(30)
+        analytics.record(A, floor=7)
+        analytics.record(B, floor=-1)
+        self.at(60)
+        analytics.record(A, floor=0)
+        self.at(90)
+        analytics.record(A, floor=None)
+        self.at(120)
+        result = analytics.snapshot()
+        usage = result["floorUsage"]
+        floors = {row["floor"]: row for row in usage["floors"]}
+        self.assertTrue(usage["available"])
+        self.assertEqual(floors[7]["usageSeconds"], 60)
+        self.assertEqual(floors[-1]["usageSeconds"], 90)
+        self.assertEqual(floors[0]["usageSeconds"], 30)
+        self.assertEqual(floors[None]["usageSeconds"], 30)
+        self.assertEqual(floors[None]["activeNow"], 1)
+        self.assertEqual(sum(row["activeNow"] for row in floors.values()), result["activeNow"])
+        self.assertEqual(sum(row["usageSeconds"] for row in floors.values()), 210)
+        self.assertEqual(usage["coverageSeconds"], 120)
+        self.at(180)
+        usage = analytics.snapshot()["floorUsage"]
+        self.assertEqual(sum(row["activeNow"] for row in usage["floors"]), 0)
+        self.assertEqual(sum(row["usageSeconds"] for row in usage["floors"]), 270)
+
+    def test_missing_invalid_and_explicitly_unselected_floors_are_distinct(self):
+        analytics = self.create()
+        analytics.record(A)
+        analytics.record(B, floor=True)
+        analytics.record(C, floor=13)
+        self.at(30)
+        usage = analytics.snapshot()["floorUsage"]
+        self.assertEqual(usage["unreportedActiveNow"], 3)
+        self.assertEqual(usage["unreportedUsageSeconds"], 90)
+        self.assertEqual(sum(row["usageSeconds"] for row in usage["floors"]), 0)
+        analytics.record(A, floor=None)
+        self.at(60)
+        usage = analytics.snapshot()["floorUsage"]
+        self.assertEqual(usage["unreportedActiveNow"], 2)
+        self.assertEqual(usage["floors"][-1], {"floor": None, "usageSeconds": 30, "activeNow": 1})
+
+    def test_floor_aggregation_survives_restart_without_persisting_new_identifiers(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "analytics.sqlite3"
+            first = self.create(path)
+            first.record(A, floor=12)
+            self.at(60)
+            first.close()
+            self.at(120)
+            with closing(self.create(path)) as second:
+                second.record(A, floor=12)
+                self.at(150)
+                usage = second.snapshot()["floorUsage"]
+                self.assertEqual(usage["collectionStartedAt"], "2026-10-24T00:00:00Z")
+                self.assertEqual(next(row["usageSeconds"] for row in usage["floors"] if row["floor"] == 12), 90)
+                self.assertEqual(usage["coverageSeconds"], 90)
+                self.assertTrue(usage["partial"])
+                saved = second._db.execute("SELECT usage_seconds FROM floor_hours").fetchone()[0]
+                self.assertNotIn(A, saved)
+                self.at(3600)
+                second.tick()
+                self.assertEqual(second._db.execute("SELECT count(*) FROM current_visitors").fetchone()[0], 0)
+
+    def test_floor_upgrade_does_not_fabricate_historical_zeroes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "analytics.sqlite3"
+            previous = self.create(path)
+            previous.record(A)
+            self.at(60)
+            previous.close()
+            # Reproduce the schema before floor usage was introduced.
+            with closing(sqlite3.connect(path)) as database, database:
+                database.execute("DROP TABLE floor_hours")
+                database.execute("DELETE FROM metadata WHERE key='floors_started_at'")
+            self.at(86400)
+            with closing(self.create(path)) as analytics:
+                earlier = analytics.snapshot(start="2026-10-24", end="2026-10-24")["floorUsage"]
+                self.assertFalse(earlier["available"])
+                self.assertTrue(all(row["usageSeconds"] is None for row in earlier["floors"]))
+                self.assertEqual(earlier["collectionStartedAt"], "2026-10-25T00:00:00Z")
+                analytics.record(A, floor=7)
+                immediate = analytics.snapshot()["floorUsage"]
+                self.assertTrue(immediate["available"])
+                self.assertEqual(next(row["activeNow"] for row in immediate["floors"] if row["floor"] == 7), 1)
+                self.at(86430)
+                current = analytics.snapshot()["floorUsage"]
+                self.assertEqual(current["coverageSeconds"], 30)
+                self.assertTrue(current["partial"])
+
+    def test_floor_usage_crosses_hour_boundary_and_expires_with_clock_gaps(self):
+        self.at(3570)
+        analytics = self.create()
+        analytics.record(A, floor=7)
+        self.at(3630)
+        analytics.record(A, floor=0)
+        self.at(3660)
+        usage = analytics.snapshot()["floorUsage"]
+        self.assertEqual(next(row["usageSeconds"] for row in usage["floors"] if row["floor"] == 7), 60)
+        self.assertEqual(next(row["usageSeconds"] for row in usage["floors"] if row["floor"] == 0), 30)
+        self.at(7200)
+        usage = analytics.snapshot()["floorUsage"]
+        self.assertEqual(usage["coverageSeconds"], 90)
+        self.assertEqual(sum(row["activeNow"] for row in usage["floors"]), 0)
+        self.at(91 * 86400)
+        analytics.tick()
+        self.assertFalse(analytics._floor_hours)
+        self.assertEqual(analytics._db.execute("SELECT count(*) FROM floor_hours").fetchone()[0], 0)
+
 
 if __name__ == "__main__":
     unittest.main()

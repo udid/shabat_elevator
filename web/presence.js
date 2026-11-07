@@ -4,6 +4,7 @@ export function createPresence(buildingId, {
   getStorage = () => globalThis.localStorage,
   randomBytes = (bytes) => globalThis.crypto.getRandomValues(bytes),
   getVisibility = () => globalThis.document.visibilityState,
+  getFloor = () => undefined,
 } = {}) {
   const key = `shabat-elevator:${buildingId}:visitor`;
   const valid = (value) => typeof value === 'string' && /^[a-f0-9]{32}$/.test(value);
@@ -20,7 +21,10 @@ export function createPresence(buildingId, {
         visitor = storage.getItem(key);
       }
       if (!valid(visitor)) return url;
-      return `${url}${url.includes('?') ? '&' : '?'}visitor=${visitor}`;
+      const floor = getFloor();
+      const selection = floor === null ? '&floor=none'
+        : Number.isInteger(floor) && floor >= -1 && floor <= 12 ? `&floor=${floor}` : '';
+      return `${url}${url.includes('?') ? '&' : '?'}visitor=${visitor}${selection}`;
     } catch { return url; }
   };
 }

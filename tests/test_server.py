@@ -390,6 +390,23 @@ class AnalyticsServerTests(unittest.TestCase):
                 urlopen(self.base + "/api/analytics?" + query)
             self.assertEqual(caught.exception.code, 400)
 
+    def test_floor_query_supports_basement_zero_and_clearing_but_rejects_invalid_values(self):
+        visitor = "a" * 32
+        for query, expected in (("floor=-1", -1), ("floor=0", 0), ("floor=12", 12), ("floor=none", None)):
+            with self.subTest(query=query):
+                with urlopen(self.base + f"/api/state?visitor={visitor}&{query}"):
+                    pass
+                usage = self.analytics.snapshot()["floorUsage"]
+                self.assertEqual(next(row["activeNow"] for row in usage["floors"] if row["floor"] == expected), 1)
+                self.assertEqual(usage["unreportedActiveNow"], 0)
+        for query in ("", "floor=", "floor=13", "floor=-2", "floor=7&floor=8", "floor=7&floor=", "floor=07", "floor=7.0", "floor=null"):
+            with self.subTest(query=query):
+                with urlopen(self.base + f"/api/state?visitor={visitor}&{query}") as response:
+                    self.assertEqual(response.status, 200)
+                usage = self.analytics.snapshot()["floorUsage"]
+                self.assertEqual(usage["unreportedActiveNow"], 1)
+                self.assertEqual(sum(row["activeNow"] for row in usage["floors"]), 0)
+
     def test_analytics_failure_does_not_affect_elevator_state(self):
         with patch.object(self.analytics, "record", side_effect=OSError("broken disk")), \
                 patch.object(self.analytics, "snapshot", side_effect=OSError("broken disk")):

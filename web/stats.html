@@ -64,13 +64,24 @@
         <div class="legend" aria-label="מקרא"><span><i class="legend-value"></i>נמדד</span><span><i class="legend-partial"></i>חלקי</span><span><i class="legend-missing"></i>אין נתונים</span></div>
       </div>
       <p id="chart-summary" class="chart-summary muted">הנתונים יופיעו לאחר תחילת האיסוף.</p>
-      <div id="chart-scroll" class="chart-scroll" tabindex="0" role="region" aria-label="גרף פעילות לפי שעה, ניתן לגלילה אופקית">
+      <div id="chart-scroll" class="chart-scroll" tabindex="0" role="region" aria-label="גרף פעילות לפי שעה. השתמשו בחצים לבחירת שעה, Home להתחלה ו־End לסוף." aria-describedby="chart-detail">
         <svg id="hour-chart" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="chart-title chart-description" viewBox="0 0 900 250">
           <title id="chart-title">מבקרים שונים בכל שעה</title>
           <desc id="chart-description">הערכים המדויקים מוצגים בטבלה שמתחת לגרף.</desc>
         </svg>
       </div>
-      <p class="chart-help muted">כל עמודה היא שעה אחת. ניתן לגלול את הגרף; הערכים המדויקים מופיעים בטבלה.</p>
+      <div id="chart-detail" class="chart-detail" aria-live="polite">בחרו שעה בגרף כדי לראות את הנתון המדויק.</div>
+      <p class="chart-help muted">כל נקודה מייצגת שעה. נגיעה או מעבר על הגרף מציגים פירוט; במקלדת אפשר להשתמש בחצים. פער בקו מציין שאין נתונים.</p>
+      <section class="floor-usage" aria-labelledby="floor-title">
+        <div class="section-heading">
+          <div><h3 id="floor-title">זמן שימוש לפי קומה</h3><p class="muted">לפי הקומה שנבחרה באתר · בטווח המוצג</p></div>
+          <span class="muted">זמן מצטבר · פעילים כרגע</span>
+        </div>
+        <p id="floor-summary" class="muted">טוען נתוני קומות…</p>
+        <p id="floor-current-note" class="muted"></p>
+        <ul id="floor-list" class="floor-list" aria-label="שימוש לפי הקומה שנבחרה"></ul>
+      </section>
+
       <div class="table-heading"><h3>פירוט לפי שעה</h3><span class="muted">השעות האחרונות מוצגות תחילה</span></div>
       <div class="table-scroll" tabindex="0" role="region" aria-label="טבלת פעילות לפי שעה, ניתן לגלילה אופקית">
         <table>
@@ -86,6 +97,7 @@
       <div class="notes-grid">
         <p><strong>דפדפנים, לא אנשים</strong>כמה לשוניות באותו דפדפן נספרות פעם אחת. טלפון ומחשב נספרים בנפרד. דף הנתונים עצמו אינו נספר.</p>
         <p><strong>ממוצע לפי זמן</strong>ממוצע הפעילים מחושב רק בזמן שבו האיסוף פעל. חוסר נתונים אינו אפס מבקרים; שעה נוכחית וכיסוי חלקי מסומנים בנפרד.</p>
+        <p><strong>שימוש לפי קומה</strong>הקומה היא הבחירה באתר, ולא מיקום מזוהה. זמן השימוש מצטבר מכל הדפדפנים הפעילים, עד 90 שניות מהדיווח האחרון. בכמה לשוניות, הדיווח האחרון קובע את הקומה.</p>
         <p><strong>היסטוריה של 90 ימים</strong>האיסוף מתחיל עם הפעלת המנגנון. מספר המבקרים השונים מחושב לכל שעה בנפרד ואינו מיועד לחיבור לסכום יומי.</p>
       </div>
     </section>

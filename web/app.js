@@ -87,6 +87,7 @@ function setupFloorPicker() {
       else localStorage.setItem(storageKey(), String(state.floor));
     } catch { /* Selection remains available for the current visit. */ }
     render();
+    pollLive();
   });
 }
 
@@ -459,7 +460,7 @@ async function init() {
     const config = await response.json();
     if (!Array.isArray(config.floors) || !config.floors.length || !config.timezone) throw new Error('Invalid configuration');
     state.config = config;
-    state.presenceUrl = createPresence(config.buildingId);
+    state.presenceUrl = createPresence(config.buildingId, { getFloor: () => state.floor });
     state.profile = buildRoute(config);
     setupFloorPicker();
     setupRoute();

@@ -63,3 +63,25 @@ test('invalid persisted ids are replaced and building namespaces are distinct', 
   saved.setItem('shabat-elevator:a:visitor', 'b'.repeat(32));
   assert.equal(createPresence('a', options)(url), `${url}?visitor=${'b'.repeat(32)}`);
 });
+
+test('visible reports include the current selected floor, with explicit clearing', () => {
+  let floor = 7;
+  let visibility = 'visible';
+  const saved = storage();
+  const presence = createPresence('a', {
+    getStorage: () => saved, randomBytes, getVisibility: () => visibility, getFloor: () => floor,
+  });
+  for (const value of [7, 0, -1, 12, null]) {
+    floor = value;
+    const params = new URL(presence(url)).searchParams;
+    assert.equal(params.get('floor'), value === null ? 'none' : String(value));
+    assert.equal(params.get('visitor'), '2a'.repeat(16));
+  }
+  for (const value of [undefined, '', '7', -2, 13, NaN, 1.5]) {
+    floor = value;
+    assert.equal(new URL(presence(url)).searchParams.has('floor'), false);
+  }
+  visibility = 'hidden';
+  floor = 7;
+  assert.equal(presence(url), url);
+});

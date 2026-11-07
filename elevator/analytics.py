@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import math
 import re
@@ -18,6 +19,18 @@ LOGGER = logging.getLogger(__name__)
 VISITOR_PATTERN = re.compile(r"[0-9a-f]{32}\Z")
 DATE_PATTERN = re.compile(r"\d{4}-\d{2}-\d{2}\Z")
 HOUR = 3600
+FLOORS = tuple(range(-1, 13))
+UNSELECTED_FLOOR = "none"
+UNREPORTED_FLOOR = "unknown"
+
+
+def floor_key(floor):
+    """Keep absent/invalid old-client data distinct from an empty selection."""
+    if floor is None:
+        return UNSELECTED_FLOOR
+    if type(floor) is int and floor in FLOORS:
+        return str(floor)
+    return UNREPORTED_FLOOR
 
 
 class AnalyticsUnavailable(RuntimeError):
@@ -29,7 +42,9 @@ class VisitorAnalytics:
 
     Saved visitor IDs deduplicate the most recently checkpointed hour. Hourly
     aggregates contain no IDs. Collection runs every 30 seconds; completed
-    hours are checkpointed even with no dashboard open.
+    hours are checkpointed even with no dashboard open. Selected-floor usage
+    stores only accumulated browser-seconds; a browser's latest reported floor
+    receives its active time, including when several tabs are open.
     """
 
     active_window_seconds = 90
@@ -74,9 +89,17 @@ class VisitorAnalytics:
                 CREATE TABLE IF NOT EXISTS current_visitors (
                     visitor TEXT PRIMARY KEY, hour INTEGER NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS floor_hours (
+                    start INTEGER PRIMARY KEY,
+                    coverage_seconds REAL NOT NULL,
+                    reported INTEGER NOT NULL,
+                    usage_seconds TEXT NOT NULL
+                );
             """)
             stored = self._db.execute("SELECT value FROM metadata WHERE key='started_at'").fetchone()
             self.started_at = float(stored[0]) if stored else now
+            floor_started = self._db.execute("SELECT value FROM metadata WHERE key='floors_started_at'").fetchone()
+            self.floors_started_at = float(floor_started[0]) if floor_started else now
             checkpoint = self._db.execute("SELECT value FROM metadata WHERE key='checkpoint_at'").fetchone()
             self._last = max(now, float(checkpoint[0])) if checkpoint else now
             self._last_observed_wall = now
@@ -85,6 +108,7 @@ class VisitorAnalytics:
             self._last_flush = now
             self._visitor_hour = self._hour_start(self._last)
             self._active = {}
+            self._active_floors = {}
             self._hours = {
                 row[0]: dict(unique=row[1], peak=row[2], visitor_seconds=row[3],
                              coverage=row[4], limited=bool(row[5]))
@@ -96,7 +120,13 @@ class VisitorAnalytics:
                     "SELECT visitor FROM current_visitors WHERE hour=? LIMIT ?",
                     (self._visitor_hour, self.max_hour_visitors))
             }
+            self._floor_hours = {
+                row[0]: dict(coverage=row[1], reported=bool(row[2]), seconds=json.loads(row[3]))
+                for row in self._db.execute("SELECT * FROM floor_hours WHERE start >= ?",
+                                            (self._retention_start(now),))
+            }
             self._dirty_hours = set()
+            self._dirty_floor_hours = set()
             self._new_visitors = set()
             self._flush(now)
             if background:
@@ -132,6 +162,10 @@ class VisitorAnalytics:
         return self._hours.setdefault(hour, dict(unique=0, peak=0, visitor_seconds=0.0,
                                                  coverage=0.0, limited=False))
 
+    def _floor_bucket(self, hour):
+        self._dirty_floor_hours.add(hour)
+        return self._floor_hours.setdefault(hour, dict(coverage=0.0, reported=False, seconds={}))
+
     def _advance(self, now):
         steady = self.monotonic_clock()
         elapsed = steady - self._last_monotonic
@@ -142,6 +176,7 @@ class VisitorAnalytics:
             # Never overlap already committed coverage after NTP corrections,
             # including a restart while the wall clock is behind its checkpoint.
             self._active.clear()
+            self._active_floors.clear()
             return now
         if (now - self._last > 3 * self.collection_seconds
                 or abs(wall_elapsed - elapsed) > 5 or elapsed < 0):
@@ -149,24 +184,38 @@ class VisitorAnalytics:
             # the elapsed interval cannot be claimed as measured uptime.
             self._last = now
             self._active.clear()
+            self._active_floors.clear()
         cursor = self._last
-        expiries = sorted(expiry for expiry in self._active.values() if expiry <= now)
+        expiries = sorted((expiry, visitor) for visitor, expiry in self._active.items() if expiry <= now)
         expired = 0
         active_count = len(self._active)
+        floor_counts = {}
+        for visitor in self._active:
+            key = self._active_floors.get(visitor, UNREPORTED_FLOOR)
+            floor_counts[key] = floor_counts.get(key, 0) + 1
         while cursor < now:
-            while expired < len(expiries) and expiries[expired] <= cursor:
+            while expired < len(expiries) and expiries[expired][0] <= cursor:
                 active_count -= 1
+                key = self._active_floors.get(expiries[expired][1], UNREPORTED_FLOOR)
+                floor_counts[key] -= 1
                 expired += 1
             hour = self._hour_start(cursor)
-            next_expiry = expiries[expired] if expired < len(expiries) else now
+            next_expiry = expiries[expired][0] if expired < len(expiries) else now
             boundary = min(now, hour + HOUR, next_expiry)
             elapsed = boundary - cursor
             bucket = self._bucket(hour)
             bucket["coverage"] += elapsed
             bucket["visitor_seconds"] += elapsed * active_count
             bucket["peak"] = max(bucket["peak"], active_count)
+            floor_bucket = self._floor_bucket(hour)
+            floor_bucket["coverage"] += elapsed
+            for key, count in floor_counts.items():
+                if count:
+                    floor_bucket["seconds"][key] = floor_bucket["seconds"].get(key, 0.0) + elapsed * count
             cursor = boundary
         self._active = {visitor: expiry for visitor, expiry in self._active.items() if expiry > now}
+        self._active_floors = {visitor: floor for visitor, floor in self._active_floors.items()
+                               if visitor in self._active}
         self._last = now
         hour = self._hour_start(now)
         if hour != self._visitor_hour:
@@ -175,7 +224,7 @@ class VisitorAnalytics:
             self._new_visitors.clear()
         return now
 
-    def record(self, visitor: str) -> bool:
+    def record(self, visitor: str, floor=UNREPORTED_FLOOR) -> bool:
         """Record one visible browser's heartbeat; invalid IDs never count."""
         if not isinstance(visitor, str) or not VISITOR_PATTERN.fullmatch(visitor):
             return False
@@ -188,6 +237,10 @@ class VisitorAnalytics:
             accepted = True
             if visitor in self._active or len(self._active) < self.max_active:
                 self._active[visitor] = now + self.active_window_seconds
+                key = floor_key(floor)
+                self._active_floors[visitor] = key
+                if key != UNREPORTED_FLOOR:
+                    self._floor_bucket(self._visitor_hour)["reported"] = True
             else:
                 bucket["limited"] = True
                 accepted = False
@@ -214,15 +267,25 @@ class VisitorAnalytics:
                      for hour in self._dirty_hours if hour >= cutoff
                      for bucket in (self._hours[hour],)])
                 self._db.execute("DELETE FROM hours WHERE start < ?", (cutoff,))
+                self._db.executemany(
+                    "INSERT OR REPLACE INTO floor_hours VALUES (?, ?, ?, ?)",
+                    [(hour, bucket["coverage"], int(bucket["reported"]), json.dumps(bucket["seconds"]))
+                     for hour in self._dirty_floor_hours if hour >= cutoff
+                     for bucket in (self._floor_hours[hour],)])
+                self._db.execute("DELETE FROM floor_hours WHERE start < ?", (cutoff,))
                 self._db.execute("DELETE FROM current_visitors WHERE hour != ?", (self._visitor_hour,))
                 self._db.executemany("INSERT OR IGNORE INTO current_visitors VALUES (?, ?)",
                                      [(visitor, self._visitor_hour) for visitor in self._new_visitors])
                 self._db.execute("INSERT OR REPLACE INTO metadata VALUES ('started_at', ?)",
                                  (self.started_at,))
+                self._db.execute("INSERT OR REPLACE INTO metadata VALUES ('floors_started_at', ?)",
+                                 (self.floors_started_at,))
                 self._db.execute("INSERT OR REPLACE INTO metadata VALUES ('checkpoint_at', ?)",
                                  (self._last,))
             self._hours = {hour: bucket for hour, bucket in self._hours.items() if hour >= cutoff}
+            self._floor_hours = {hour: bucket for hour, bucket in self._floor_hours.items() if hour >= cutoff}
             self._dirty_hours.clear()
+            self._dirty_floor_hours.clear()
             self._new_visitors.clear()
             self._last_flush = now
         except Exception:
@@ -301,7 +364,37 @@ class VisitorAnalytics:
                 "retentionDays": self.retention_days, "activeWindowSeconds": self.active_window_seconds,
                 "activeNow": len(self._active), "collectionStartedAt": self._iso(self.started_at),
                 "rangeStart": self._iso(beginning), "rangeEnd": self._iso(ending), "hours": hours,
+                "floorUsage": self._floor_snapshot(beginning, ending, now),
             }
+
+    def _floor_snapshot(self, beginning, ending, now):
+        buckets = [bucket for hour, bucket in self._floor_hours.items() if beginning <= hour < ending]
+        coverage = sum(bucket["coverage"] for bucket in buckets)
+        available = coverage > 0 or any(bucket["reported"] for bucket in buckets)
+        totals = {}
+        for bucket in buckets:
+            for key, seconds in bucket["seconds"].items():
+                totals[key] = totals.get(key, 0.0) + seconds
+        active = {}
+        for visitor in self._active:
+            key = self._active_floors.get(visitor, UNREPORTED_FLOOR)
+            active[key] = active.get(key, 0) + 1
+        elapsed = max(0, min(now, ending) - beginning)
+        limited = any(bucket["limited"] for hour, bucket in self._hours.items() if beginning <= hour < ending)
+        unreported = totals.get(UNREPORTED_FLOOR, 0.0)
+        return {
+            "collectionStartedAt": self._iso(self.floors_started_at),
+            "available": available,
+            "partial": not available or coverage < elapsed - 0.001 or limited or unreported > 0,
+            "coverageSeconds": round(coverage, 3),
+            "floors": [
+                {"floor": floor, "usageSeconds": round(totals.get(floor_key(floor), 0.0), 3) if available else None,
+                 "activeNow": active.get(floor_key(floor), 0)}
+                for floor in (*FLOORS, None)
+            ],
+            "unreportedActiveNow": active.get(UNREPORTED_FLOOR, 0),
+            "unreportedUsageSeconds": round(unreported, 3) if available else None,
+        }
 
     def close(self):
         self._stop.set()

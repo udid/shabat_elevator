@@ -1,3 +1,4 @@
+import { createHourlyChart } from './stats-chart.js';
 import { localDate, shiftDate, validRange, formatMetric, formatDateTime, hourParts, coverageDetails } from './stats-model.js';
 
 const $ = (id) => document.getElementById(id);
@@ -7,7 +8,7 @@ const METRICS = {
   averageConcurrent: 'ממוצע פעילים במקביל',
 };
 const state = { config: null, data: null, preset: '24h', range: null, metric: 'uniqueVisitors', request: 0, controller: null, receivedAt: 0 };
-const svgNS = 'http://www.w3.org/2000/svg';
+const hourlyChart = createHourlyChart($('chart-scroll'), $('hour-chart'), $('chart-detail'));
 
 function text(id, value) { $(id).textContent = String(value); }
 function connection(kind, message) {
@@ -16,76 +17,74 @@ function connection(kind, message) {
 }
 function invalidateCurrent(message, kind = 'error') {
   text('active-now', '—');
+  document.querySelectorAll('.floor-active').forEach((element) => { element.textContent = '— כעת'; });
+  text('floor-current-note', 'אין נתון עדכני על פעילים לפי קומה.');
   connection(kind, message);
 }
 function showRangeError(message) {
   text('range-error', message);
   $('range-error').hidden = !message;
 }
-function svgNode(name, attributes = {}, value) {
-  const node = document.createElementNS(svgNS, name);
-  Object.entries(attributes).forEach(([key, attribute]) => node.setAttribute(key, String(attribute)));
-  if (value !== undefined) node.textContent = value;
-  return node;
-}
-
 function renderChart() {
   const hours = state.data?.hours || [];
-  const chart = $('hour-chart');
-  const width = Math.max(900, hours.length * 30 + 64);
-  const left = 42;
-  const right = width - 12;
-  const top = 14;
-  const bottom = 195;
-  const height = bottom - top;
-  chart.style.width = `${width}px`;
-  chart.setAttribute('viewBox', `0 0 ${width} 260`);
-  chart.replaceChildren(
-    svgNode('title', { id: 'chart-title' }, METRICS[state.metric]),
-    svgNode('desc', { id: 'chart-description' }, 'כל עמודה היא שעה אחת, מהישן לחדש. הערכים והכיסוי המדויקים מופיעים בטבלה שמתחת לגרף.'),
-  );
-  const defs = svgNode('defs');
-  const pattern = svgNode('pattern', { id: 'missing-pattern', width: 6, height: 6, patternUnits: 'userSpaceOnUse' });
-  pattern.append(svgNode('path', { d: 'M0 6 L6 0', stroke: '#626975', 'stroke-width': 1 }));
-  defs.append(pattern);
-  chart.append(defs);
-  const values = hours.map((hour) => hour[state.metric]).filter((value) => typeof value === 'number' && Number.isFinite(value));
-  const maximum = Math.max(1, Math.ceil(Math.max(0, ...values)));
-  const ticks = maximum < 4 ? maximum : 4;
-  for (let index = 0; index <= ticks; index += 1) {
-    const value = maximum * index / ticks;
-    const y = bottom - height * index / ticks;
-    chart.append(svgNode('line', { x1: left, x2: right, y1: y, y2: y, class: 'chart-grid' }));
-    chart.append(svgNode('text', { x: left - 8, y: y + 4, 'text-anchor': 'end', class: 'chart-label' }, formatMetric(value)));
-  }
-  const cell = (right - left) / Math.max(1, hours.length);
-  const step = Math.max(1, Math.ceil(100 / cell));
-  hours.forEach((hour, index) => {
-    const parts = hourParts(hour);
-    const coverage = coverageDetails(hour, state.data.generatedAt);
-    const x = left + cell * index;
-    const value = hour[state.metric];
-    const hasValue = typeof value === 'number' && Number.isFinite(value) && coverage.kind !== 'missing';
-    const tooltip = `${parts.date} ${parts.range} · ${METRICS[state.metric]}: ${hasValue ? formatMetric(value) : 'אין נתונים'} · ${coverage.label}`;
-    const group = svgNode('g');
-    group.append(svgNode('title', {}, tooltip));
-    if (!hasValue) {
-      group.append(svgNode('rect', { x: x + 3, y: bottom - 14, width: Math.max(2, cell - 6), height: 14, fill: 'url(#missing-pattern)', stroke: '#626975', 'stroke-width': .5 }));
-    } else if (value === 0) {
-      group.append(svgNode('line', { x1: x + 4, x2: x + cell - 4, y1: bottom - 1, y2: bottom - 1, class: 'chart-zero' }));
-    } else {
-      const barHeight = Math.max(1, value / maximum * height);
-      group.append(svgNode('rect', { x: x + 3, y: bottom - barHeight, width: Math.max(2, cell - 6), height: barHeight, rx: 2, class: `chart-bar${coverage.kind === 'partial' ? ' partial' : ''}` }));
-    }
-    chart.append(group);
-    if (index % step === 0 || index === hours.length - 1 && hours.length % step > 1) {
-      chart.append(svgNode('text', { x: x + cell / 2, y: bottom + 22, 'text-anchor': 'middle', class: 'chart-label' }, parts.short));
-      chart.append(svgNode('text', { x: x + cell / 2, y: bottom + 39, 'text-anchor': 'middle', class: 'chart-label' }, parts.date.replace(/\.\d{4}$/, '')));
-      chart.append(svgNode('text', { x: x + cell / 2, y: bottom + 54, 'text-anchor': 'middle', class: 'chart-label' }, parts.offset));
-    }
-  });
+  hourlyChart.render(state.data, state.metric, METRICS[state.metric]);
   const measured = hours.filter((hour) => coverageDetails(hour, state.data.generatedAt).kind !== 'missing').length;
-  text('chart-summary', measured ? `${formatMetric(measured)} מתוך ${formatMetric(hours.length)} שעות עם מדידה. ${state.metric === 'averageConcurrent' ? 'הממוצע מתייחס לזמן שנמדד בלבד.' : 'שעות ללא מדידה מסומנות בקווים.'}` : 'אין עדיין נתונים לטווח שנבחר. שעות ללא מדידה אינן נספרות כאפס.');
+  text('chart-summary', measured ? `${formatMetric(measured)} מתוך ${formatMetric(hours.length)} שעות עם מדידה. ${state.metric === 'averageConcurrent' ? 'הממוצע מתייחס לזמן שנמדד בלבד.' : 'כל הטווח מוצג בגרף, ללא גלילה.'}` : 'אין עדיין נתונים לטווח שנבחר. שעות ללא מדידה אינן נספרות כאפס.');
+}
+
+function formatUsage(seconds) {
+  if (typeof seconds !== 'number' || !Number.isFinite(seconds)) return '—';
+  if (seconds === 0) return '0 דק׳';
+  if (seconds < 60) return 'פחות מדקה';
+  if (seconds < 3600) return `${formatMetric(Math.floor(seconds / 60))} דק׳`;
+  const hours = Math.round(seconds / 360) / 10;
+  return hours === 1 ? 'שעה' : `${formatMetric(hours)} שעות`;
+}
+
+function renderFloors() {
+  const usage = state.data?.floorUsage;
+  const list = $('floor-list');
+  list.replaceChildren();
+  text('floor-current-note', '');
+  if (!usage || !Array.isArray(usage.floors)) {
+    text('floor-summary', 'נתוני הקומות יופיעו לאחר הפעלת איסוף הקומות בשרת.');
+    return;
+  }
+  const started = Number.isFinite(Date.parse(usage.collectionStartedAt)) ? formatDateTime(usage.collectionStartedAt) : '';
+  if (!usage.available) {
+    text('floor-summary', `אין נתוני קומות בטווח שנבחר.${started ? ` האיסוף החל ב־${started}.` : ''}`);
+    return;
+  }
+  const notes = [`זמן שימוש משוער, לפי דיווחי הדפדפנים.${started ? ` נאסף מ־${started}.` : ''}`];
+  if (usage.partial) notes.push('הטווח כולל מדידה חלקית.');
+  if (usage.unreportedUsageSeconds > 0) notes.push(`${formatUsage(usage.unreportedUsageSeconds)} ללא דיווח קומה (למשל, גרסה ישנה של האתר).`);
+  if (usage.unreportedActiveNow > 0) text('floor-current-note', `${formatMetric(usage.unreportedActiveNow)} פעילים כרגע ללא דיווח קומה.`);
+  text('floor-summary', notes.join(' '));
+  const floors = [...usage.floors].sort((a, b) => a.floor === null ? 1 : b.floor === null ? -1 : a.floor - b.floor);
+  const maximum = Math.max(1, ...floors.map((floor) => floor.usageSeconds || 0));
+  for (const floor of floors) {
+    const row = document.createElement('li');
+    row.className = 'floor-row';
+    row.dataset.floor = floor.floor === null ? 'unselected' : String(floor.floor);
+    const label = document.createElement('span');
+    label.className = 'floor-label';
+    label.textContent = floor.floor === null ? 'ללא בחירה' : floor.floor === 0 ? '0 · כניסה' : `קומה ⁦${floor.floor}⁩`;
+    const track = document.createElement('span');
+    track.className = 'floor-track';
+    track.setAttribute('aria-hidden', 'true');
+    const fill = document.createElement('span');
+    fill.className = 'floor-fill';
+    fill.style.width = `${Math.max(0, floor.usageSeconds || 0) / maximum * 100}%`;
+    track.append(fill);
+    const time = document.createElement('span');
+    time.className = 'floor-time';
+    time.textContent = formatUsage(floor.usageSeconds);
+    const active = document.createElement('span');
+    active.className = 'floor-active';
+    active.textContent = `${formatMetric(floor.activeNow)} כעת`;
+    row.append(label, track, time, active);
+    list.append(row);
+  }
 }
 
 function renderTable() {
@@ -143,6 +142,7 @@ function renderData() {
   text('collection-start', formatDateTime(data.collectionStartedAt));
   $('collection-start').dateTime = data.collectionStartedAt;
   text('range-label', state.preset === '24h' ? '24 השעות האחרונות · כולל השעה הנוכחית' : `${state.range.start.split('-').reverse().join('.')} — ${state.range.end.split('-').reverse().join('.')}`);
+  renderFloors();
   renderChart();
   renderTable();
   if (document.visibilityState !== 'visible') invalidateCurrent('הרענון יתחדש כשהדף גלוי', 'paused');
@@ -178,16 +178,16 @@ async function refresh(force = false) {
     if (!data.available || !Array.isArray(data.hours) || !Number.isInteger(data.activeNow)
       || !Number.isFinite(Date.parse(data.generatedAt)) || !Number.isFinite(Date.parse(data.collectionStartedAt))) throw new Error('Invalid analytics');
     if (request !== state.request) return;
-    const firstRender = !state.data;
     state.data = data;
     state.receivedAt = Date.now();
     renderData();
-    if (firstRender) $('chart-scroll').scrollLeft = $('chart-scroll').scrollWidth;
   } catch {
     if (request !== state.request) return;
     invalidateCurrent(state.data ? 'אין חיבור · ההיסטוריה מוצגת מהעדכון האחרון' : 'הנתונים אינם זמינים כרגע · נסו לרענן');
     if (!state.data) {
       text('chart-summary', 'ממתינים לחיבור לשירות הנתונים.');
+      text('floor-summary', 'לא ניתן לטעון את נתוני הקומות כרגע.');
+      text('chart-detail', 'הנתונים אינם זמינים כרגע.');
       const cell = document.createElement('td');
       cell.colSpan = 5;
       cell.className = 'empty-cell';
@@ -210,7 +210,10 @@ function selectRange(preset, range) {
   document.querySelectorAll('[data-range]').forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.range === preset)));
   text('active-now', '—');
   text('range-label', preset === '24h' ? '24 השעות האחרונות' : `${range.start.split('-').reverse().join('.')} — ${range.end.split('-').reverse().join('.')}`);
-  $('hour-chart').replaceChildren();
+  hourlyChart.clear();
+  $('floor-list').replaceChildren();
+  text('floor-summary', 'טוען נתוני קומות…');
+  text('floor-current-note', '');
   text('chart-summary', 'טוען את הטווח שנבחר…');
   $('hours-table').replaceChildren();
   refresh(true);

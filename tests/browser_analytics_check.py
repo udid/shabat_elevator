@@ -26,18 +26,19 @@ CHROME = os.getenv("BROWSER_PATH", r"C:\Program Files\Google\Chrome\Application\
 NOW = datetime(2026, 10, 25, 12, 30, tzinfo=timezone.utc)
 
 
-def fixture():
-    beginning = NOW.replace(minute=0) - timedelta(hours=23)
+def fixture(count=24):
+    beginning = NOW.replace(minute=0) - timedelta(hours=count - 1)
     hours = []
-    for index in range(24):
+    for index in range(count):
         start = beginning + timedelta(hours=index)
-        missing = index == 0
-        partial = index in (3, 23)
+        missing = index in (0, count // 2)
+        partial = index in (3, count - 1)
+        zero = index == 1
         hours.append({
             "start": start.isoformat(), "end": (start + timedelta(hours=1)).isoformat(),
-            "uniqueVisitors": None if missing else 7 + index % 4,
-            "peakConcurrent": None if missing else 3 + index % 3,
-            "averageConcurrent": None if missing else 1.5 + index % 3 * .3,
+            "uniqueVisitors": None if missing else 0 if zero else 7 + index % 4,
+            "peakConcurrent": None if missing else 0 if zero else 3 + index % 3,
+            "averageConcurrent": None if missing else 0 if zero else 1.5 + index % 3 * .3,
             "coverageSeconds": 0 if missing else 1800 if partial else 3600,
             "partial": missing or partial, "limited": index == 4,
         })
@@ -45,9 +46,33 @@ def fixture():
         "available": True, "generatedAt": NOW.isoformat(), "timezone": "Asia/Jerusalem",
         "retentionDays": 90, "activeWindowSeconds": 90, "activeNow": 4,
         "collectionStartedAt": (beginning + timedelta(hours=1)).isoformat(),
-        "rangeStart": beginning.isoformat(), "rangeEnd": (beginning + timedelta(hours=24)).isoformat(),
+        "rangeStart": beginning.isoformat(), "rangeEnd": (beginning + timedelta(hours=count)).isoformat(),
         "hours": hours,
+        "floorUsage": {
+            "collectionStartedAt": (beginning + timedelta(hours=1)).isoformat(),
+            "available": True, "partial": True, "coverageSeconds": (count - 3) * 3600,
+            "unreportedActiveNow": 1, "unreportedUsageSeconds": 120,
+            "floors": [
+                {"floor": floor, "usageSeconds": {-1: 90, 0: 540, 7: 3600, None: 300}.get(floor, 0),
+                 "activeNow": {7: 2, None: 1}.get(floor, 0)}
+                for floor in [*range(-1, 13), None]
+            ],
+        },
     }
+
+
+def assert_chart_fits(page):
+    # The browser clock is fixed for deterministic Israel dates; permit resize
+    # rendering queued via animation frames before asserting SVG geometry.
+    page.clock.run_for(100)
+    page.wait_for_function("""() => {
+        const container = document.getElementById('chart-scroll');
+        const chart = document.getElementById('hour-chart');
+        return document.documentElement.scrollWidth <= innerWidth
+            && container.scrollWidth <= container.clientWidth
+            && chart.getBoundingClientRect().width <= container.clientWidth + 1
+            && Math.abs(chart.viewBox.baseVal.width - chart.clientWidth) <= 2;
+    }""")
 
 
 class QuietHandler(SimpleHTTPRequestHandler):
@@ -81,8 +106,8 @@ def main():
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch(executable_path=CHROME, headless=True)
 
-            def prepare(width=1366, height=900):
-                context = browser.new_context(viewport={"width": width, "height": height})
+            def prepare(width=1366, height=900, touch=False):
+                context = browser.new_context(viewport={"width": width, "height": height}, has_touch=touch)
                 context.add_init_script(f"({WAKE_LOCK_MOCK})('granted')")
                 context.route("**/config.json", lambda route: route.fulfill(json=config))
                 context.route("https://www.hebcal.com/**", lambda route: route.fulfill(json=CALENDAR))
@@ -106,8 +131,15 @@ def main():
             assert visits
             identifier = parse_qs(urlsplit(visits[-1]).query)["visitor"][0]
             assert re.fullmatch("[0-9a-f]{32}", identifier)
+            assert parse_qs(urlsplit(visits[-1]).query)["floor"] == ["none"]
             assert first.locator('a[href*="stats"]').count() == 0
             assert first.locator("#active-now").count() == 0
+            for selection in ("7", "0", "-1", ""):
+                floor = selection or "none"
+                with first.expect_response(lambda response: parse_qs(urlsplit(response.url).query).get("floor") == [floor]):
+                    first.locator("#floor-select").select_option(selection)
+                query = parse_qs(urlsplit(page_visits[first][-1]).query)
+                assert query["visitor"] == [identifier] and query["floor"] == [floor]
 
             second = context.new_page()
             second.clock.install(time=NOW)
@@ -118,13 +150,14 @@ def main():
             first.clock.run_for(30_100)
             assert len(page_visits[first]) > prior
             assert "visitor" not in parse_qs(urlsplit(page_visits[first][-1]).query)
+            assert "floor" not in parse_qs(urlsplit(page_visits[first][-1]).query)
             second.clock.run_for(30_100)
             assert parse_qs(urlsplit(page_visits[second][-1]).query)["visitor"] == [identifier]
             with first.expect_response(re.compile(r"/api/state\?visitor=")):
                 first.evaluate("wakeTest.setVisibility('visible')")
             assert parse_qs(urlsplit(page_visits[first][-1]).query)["visitor"] == [identifier]
             context.close()
-            print("PASS: visible-only heartbeat, shared browser identity, hidden tab leaves other tab intact, no stats UI on main page")
+            print("PASS: selected/cleared floor heartbeats, visible-only shared browser identity and no stats UI on main page")
 
             # Blocked storage omits presence without losing the elevator state.
             context = prepare()
@@ -136,21 +169,29 @@ def main():
             page.goto(base, wait_until="networkidle")
             expect(page.locator("#detector-connection")).to_have_attribute("data-status", "connected")
             assert "visitor" not in parse_qs(urlsplit(visits[-1]).query)
+            assert "floor" not in parse_qs(urlsplit(visits[-1]).query)
             context.close()
             print("PASS: unavailable browser storage preserves elevator operation")
 
             for width, height in ((1366, 900), (390, 844), (320, 640)):
-                context = prepare(width, height)
+                context = prepare(width, height, touch=width < 700)
                 requests = []
                 unexpected_presence = []
-                mode = {"fail": False}
+                mode = {"fail": False, "count": 24, "floor": "available"}
 
                 def analytics_response(route):
                     requests.append(route.request.url)
                     if mode["fail"]:
                         route.fulfill(status=503, json={"available": False})
                     else:
-                        route.fulfill(json=fixture())
+                        data = fixture(mode["count"])
+                        if mode["floor"] == "unsupported":
+                            del data["floorUsage"]
+                        elif mode["floor"] == "unavailable":
+                            data["floorUsage"]["available"] = False
+                            for floor in data["floorUsage"]["floors"]:
+                                floor["usageSeconds"] = None
+                        route.fulfill(json=data)
 
                 context.route("**/api/analytics*", analytics_response)
                 context.route("**/api/state*", lambda route: (unexpected_presence.append(route.request.url), route.fulfill(json=live)))
@@ -160,35 +201,102 @@ def main():
                 expect(page.locator("#active-now")).to_have_text("4")
                 expect(page.locator("#hours-table tr")).to_have_count(24)
                 assert page.locator('meta[name="robots"]').get_attribute("content") == "noindex,nofollow"
-                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+                assert_chart_fits(page)
                 table = page.locator("#hours-table").inner_text()
                 assert "אין נתונים" in table and "כיסוי חלקי" in table
                 assert "UTC+2" in table and "UTC+3" in table
                 assert not unexpected_presence
+                floor_seven = page.locator('.floor-row[data-floor="7"]')
+                expect(floor_seven.locator(".floor-active")).to_have_text("2 כעת")
+                expect(page.locator('.floor-row[data-floor="unselected"] .floor-active')).to_have_text("1 כעת")
+                expect(page.locator('.floor-row[data-floor="-1"]')).to_be_visible()
+                floor_history = floor_seven.locator(".floor-time").inner_text()
+
+                chart = page.locator("#chart-scroll")
+                chart.focus()
+                chart.press("Home")
+                expect(page.locator("#chart-detail")).to_contain_text("אין נתונים")
+                expect(page.locator(".chart-cursor")).to_have_attribute("data-index", "0")
+                expect(page.locator(".chart-selected")).to_have_count(0)
+                missing_detail = page.locator("#chart-detail").inner_text()
+                chart.press("ArrowRight")
+                expect(page.locator("#chart-detail")).not_to_contain_text("אין נתונים")
+                expect(page.locator("#chart-detail")).to_contain_text("0")
+                expect(page.locator(".chart-selected")).to_have_attribute("data-index", "1")
+                expect(page.locator('.chart-point[data-index="12"]')).to_have_count(0)
+                expect(page.locator('.chart-point[data-index="3"]')).to_have_class(re.compile(r"\bpartial\b"))
+                assert page.evaluate(r"""() => {
+                    const point = (index) => document.querySelector(`.chart-point[data-index="${index}"]`);
+                    const gap = (+point(11).getAttribute('cx') + +point(13).getAttribute('cx')) / 2;
+                    const baseline = Math.max(...Array.from(document.querySelectorAll('.chart-grid'), line => +line.getAttribute('y1')));
+                    if (+point(1).getAttribute('cy') !== baseline) return false;
+                    return Array.from(document.querySelectorAll('.chart-line')).every(path => {
+                        let previous = null;
+                        for (const command of path.getAttribute('d').matchAll(/([ML])([\d.e+-]+),([\d.e+-]+)/g)) {
+                            const x = +command[2];
+                            if (command[1] === 'L' && previous < gap && x > gap) return false;
+                            previous = x;
+                        }
+                        return true;
+                    });
+                }""")
+                chart.press("ArrowLeft")
+                expect(page.locator("#chart-detail")).to_have_text(missing_detail, use_inner_text=True)
+                chart.press("End")
+                expect(page.locator("#chart-detail")).to_contain_text("שעה נוכחית")
+                if width < 700:
+                    page.locator("#hour-chart").tap(position={"x": 45, "y": 80})
+                    expect(page.locator("#chart-detail")).not_to_contain_text("שעה נוכחית")
                 page.screenshot(path=str(ARTIFACTS / f"analytics-{width}.png"), full_page=True)
 
                 page.locator("#metric-select").select_option("averageConcurrent")
                 expect(page.locator("#chart-title")).to_have_text("ממוצע פעילים במקביל")
+                mode["count"] = 168
                 page.locator('[data-range="week"]').click()
                 page.wait_for_function("document.getElementById('active-now').textContent === '4'")
                 query = parse_qs(urlsplit(requests[-1]).query)
                 assert query == {"start": ["2026-10-19"], "end": ["2026-10-25"]}
+                expect(page.locator("#hours-table tr")).to_have_count(168)
+                assert_chart_fits(page)
+
+                mode["count"] = 2160
+                page.locator("#start-date").fill("2026-07-28")
+                page.locator("#end-date").fill("2026-10-25")
+                page.locator('#range-form button[type="submit"]').click()
+                expect(page.locator("#hours-table tr")).to_have_count(2160)
+                assert_chart_fits(page)
+                page.set_viewport_size({"width": 320 if width > 700 else 1366, "height": height})
+                assert_chart_fits(page)
+                page.set_viewport_size({"width": width, "height": height})
+                assert_chart_fits(page)
 
                 before = len(requests)
                 page.evaluate("wakeTest.setVisibility('hidden')")
                 page.clock.run_for(31_000)
                 assert len(requests) == before
                 expect(page.locator("#active-now")).to_have_text("—")
+                expect(floor_seven.locator(".floor-active")).to_have_text("— כעת")
                 page.evaluate("wakeTest.setVisibility('visible')")
                 expect(page.locator("#active-now")).to_have_text("4")
+                expect(floor_seven.locator(".floor-active")).to_have_text("2 כעת")
                 mode["fail"] = True
                 page.locator("#refresh-button").click()
                 expect(page.locator("#active-now")).to_have_text("—")
                 expect(page.locator("#status-text")).to_contain_text("אין חיבור")
-                expect(page.locator("#hours-table tr")).to_have_count(24)
+                expect(page.locator("#hours-table tr")).to_have_count(2160)
+                expect(floor_seven.locator(".floor-active")).to_have_text("— כעת")
+                expect(floor_seven.locator(".floor-time")).to_have_text(floor_history)
                 assert not unexpected_presence
+                mode.update(fail=False, count=24, floor="unsupported")
+                page.locator("#refresh-button").click()
+                expect(page.locator("#floor-list .floor-row")).to_have_count(0)
+                expect(page.locator("#floor-summary")).to_contain_text("לאחר הפעלת איסוף הקומות")
+                mode["floor"] = "unavailable"
+                page.locator("#refresh-button").click()
+                expect(page.locator("#floor-summary")).to_contain_text("אין נתוני קומות בטווח שנבחר")
+                expect(page.locator("#floor-list .floor-row")).to_have_count(0)
                 context.close()
-                print(f"PASS: stats {width}px, date query, DST labels, missing/partial coverage, hidden refresh pause and stale-data failure")
+                print(f"PASS: stats {width}px, 24/168/2160 hours without chart scrolling, resize/touch/keyboard, floor use, DST and stale data")
 
             # Exercise the real HTTP/SQLite contract too, without production data.
             sys.path.insert(0, str(ROOT))
@@ -209,18 +317,26 @@ def main():
                     main_page.clock.install(time=NOW)
                     main_page.goto(actual_base, wait_until="networkidle")
                     assert analytics.snapshot()["activeNow"] == 1
+                    with main_page.expect_response(lambda response: parse_qs(urlsplit(response.url).query).get("floor") == ["7"]):
+                        main_page.locator("#floor-select").select_option("7")
                     now[0] += timedelta(seconds=30)
                     analytics.tick()
                     stats_page = context.new_page()
                     stats_page.clock.install(time=NOW)
                     stats_page.goto(actual_base + "/stats.html", wait_until="networkidle")
                     expect(stats_page.locator("#active-now")).to_have_text("1")
+                    expect(stats_page.locator('.floor-row[data-floor="7"] .floor-active')).to_have_text("1 כעת")
+                    floor = next(item for item in analytics.snapshot()["floorUsage"]["floors"] if item["floor"] == 7)
+                    assert floor["usageSeconds"] == 30 and floor["activeNow"] == 1
                     assert analytics.snapshot()["hours"][-1]["uniqueVisitors"] == 1
                     main_page.evaluate("wakeTest.setVisibility('hidden')")
                     now[0] += timedelta(seconds=90)
                     analytics.tick()
                     stats_page.locator("#refresh-button").click()
                     expect(stats_page.locator("#active-now")).to_have_text("0")
+                    expect(stats_page.locator('.floor-row[data-floor="7"] .floor-active')).to_have_text("0 כעת")
+                    floor = next(item for item in analytics.snapshot()["floorUsage"]["floors"] if item["floor"] == 7)
+                    assert floor["usageSeconds"] == 90 and floor["activeNow"] == 0
                     hour = analytics.snapshot()["hours"][-1]
                     assert hour["uniqueVisitors"] == 1 and hour["peakConcurrent"] == 1
                     assert hour["averageConcurrent"] == .75

@@ -14,7 +14,7 @@ from pathlib import Path
 from threading import Thread
 from urllib.parse import parse_qs, urlsplit
 
-from .analytics import VisitorAnalytics
+from .analytics import FLOORS, UNREPORTED_FLOOR, VisitorAnalytics
 from .state import ObservationStore
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -77,10 +77,17 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.cache_control = "no-store"
             if self.analytics is not None:
                 try:
-                    params = parse_qs(url.query, max_num_fields=8)
+                    params = parse_qs(url.query, keep_blank_values=True, max_num_fields=8)
                     visitor = params.get("visitor", [])
                     if len(visitor) == 1:
-                        self.analytics.record(visitor[0])
+                        selection = params.get("floor", [])
+                        floor = UNREPORTED_FLOOR
+                        if len(selection) == 1:
+                            if selection[0] == "none":
+                                floor = None
+                            elif selection[0] in {str(value) for value in FLOORS}:
+                                floor = int(selection[0])
+                        self.analytics.record(visitor[0], floor=floor)
                 except Exception:
                     # A failed statistics disk must never break elevator state.
                     pass
