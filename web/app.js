@@ -275,7 +275,7 @@ function render() {
       setText('countdown-label', activity.status === 'loading' ? 'טוען את זמני השבת והחג' : 'זמני הפעילות אינם זמינים');
     } else if (!simulation) {
       const waiting = live.anchor === null || live.cycle === null || live.live?.measurementStatus === 'waiting';
-      const waitingLabel = live.anchorKind === 'departure' ? 'ממתינים לזיהוי' : 'ממתינים למדידת מחזור';
+      const waitingLabel = live.anchorKind === 'departure' ? 'ממתין לשני זיהויים רצופים' : 'ממתינים למדידת מחזור';
       setText('countdown-label', live.monitorOnly ? 'מצב בדיקה — טרם הופעל זיהוי'
         : !live.connected ? 'התחזית אינה זמינה' : waiting ? waitingLabel : 'התחזית ממתינה לסנכרון');
     }
